@@ -1,0 +1,7 @@
+version: '3.3'
+
+services:
+  curling:
+    image: ghcr.io/cdwiegand/go-curling
+    build:
+      context: .
