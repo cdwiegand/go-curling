@@ -18,7 +18,7 @@ func main() {
 	var headerout string
 
 	flag.StringVar(&method, "X", "GET", "HTTP method to use")
-	flag.StringVar(&output, "o", "/dev/null", "Where to output results")
+	flag.StringVar(&output, "o", "-", "Where to output results")
 	flag.StringVar(&headerout, "D", "/dev/null", "Where to output headers")
 	flag.BoolVar(&silentFail, "f", false, "If fail do not emit contents just return fail exit code (-6).")
 	flag.Parse()
@@ -44,22 +44,20 @@ func main() {
 	if resp != nil {
 		if err == nil || !silentFail {
 			// emit body
-			respBodyStr := ""
+			var respBody []byte
 			if resp.Body != nil {
 				defer resp.Body.Close()
-				respBody, err := io.ReadAll(resp.Body)
-				if err != nil {
-					log.Fatalln(err)
-				}
-				respBodyStr = string(respBody)
+				respBody, _ = io.ReadAll(resp.Body)
 			}
 
 			headerString := strings.Join(formatResponseHeaders(resp), "\n")
 			if headerout == output {
-				writeToFile(headerout, headerString+"\n\n"+respBodyStr)
+				bytesOut := []byte(headerString)
+				bytesOut = append(bytesOut, respBody...)
+				writeToFileBytes(headerout, bytesOut)
 			} else {
-				writeToFile(headerout, headerString)
-				writeToFile(output, respBodyStr)
+				writeToFileBytes(headerout, []byte(headerString))
+				writeToFileBytes(output, respBody)
 			}
 		}
 	}
@@ -88,16 +86,16 @@ func formatResponseHeaders(resp *http.Response) (res []string) {
 	}
 	return
 }
-func writeToFile(file string, body string) {
+func writeToFileBytes(file string, body []byte) {
 	if file == "/dev/null" {
 		// do nothing
 	} else if file == "/dev/stderr" {
-		os.Stderr.WriteString(body)
+		os.Stderr.Write(body)
 	} else if file == "-" || file == "/dev/stdout" {
 		// stdout
-		fmt.Println(body)
+		os.Stdout.Write(body)
 	} else {
 		// output to file
-		os.WriteFile(file, []byte(body), 0644)
+		os.WriteFile(file, body, 0644)
 	}
 }
