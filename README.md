@@ -11,3 +11,9 @@ curl -D - -o - https://google.com
 curl -D /dev/null -o /dev/null https://google.not.valid.haha
 curl https://google.com
 ```
+
+# Using in a Dockerfile
+```
+COPY --from=ghcr.io/cdwiegand/cdwiegand/go-curling:latest /curl /usr/bin/curl
+HEALTHCHECK CMD curl -A "HealthCheck: Docker/1.0" http://localhost:80
+```
