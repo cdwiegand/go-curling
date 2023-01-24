@@ -16,10 +16,12 @@ func main() {
 	var silentFail bool
 	var output string
 	var headerout string
+	var agentout string
 
 	flag.StringVar(&method, "X", "GET", "HTTP method to use")
 	flag.StringVar(&output, "o", "-", "Where to output results")
 	flag.StringVar(&headerout, "D", "/dev/null", "Where to output headers")
+	flag.StringVar(&agentout, "A", "go-curling/1", "User-agent to use")
 	flag.BoolVar(&silentFail, "f", false, "If fail do not emit contents just return fail exit code (-6).")
 	flag.Parse()
 
@@ -39,6 +41,7 @@ func main() {
 
 	request, err := http.NewRequest(method, the_url, nil)
 	client := new(http.Client)
+	request.Header.Set("User-Agent", agentout)
 	resp, err := client.Do(request)
 
 	if resp != nil {
