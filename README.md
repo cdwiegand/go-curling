@@ -28,3 +28,9 @@ curl https://my.local.test:443 -k
 COPY --from=ghcr.io/cdwiegand/cdwiegand/go-curling:latest /curl /usr/bin/curl
 HEALTHCHECK CMD curl -A "HealthCheck-Docker/1.0" http://localhost:80
 ```
+
+Alternative:
+```
+COPY --from=cdwiegand/go-curling:latest /curl /usr/bin/curl
+HEALTHCHECK CMD curl -A "HealthCheck-Docker/1.0" http://localhost:80
+```
