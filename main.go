@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"io"
@@ -30,6 +31,7 @@ func main() {
 	flag.StringVar(&ctx.headerout, "D", "/dev/null", "Where to output headers")
 	flag.StringVar(&ctx.agentout, "A", "go-curling/1", "User-agent to use")
 	flag.BoolVar(&ctx.silentFail, "f", false, "If fail do not emit contents just return fail exit code (-6)")
+	flag.BoolVar(&ctx.ignoreBadCerts, "k", false, "Ignore invalid SSL certificates")
 	flag.Parse()
 
 	for _, val := range flag.Args() {
@@ -50,6 +52,11 @@ func main() {
 }
 func run(ctx *CurlContext) {
 	request, err := http.NewRequest(ctx.method, ctx.the_url, nil)
+	customTransport := http.DefaultTransport.(*http.Transport).Clone()
+	if ctx.ignoreBadCerts {
+		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	client := &http.Client{Transport: customTransport}
 	request.Header.Set("User-Agent", ctx.agentout)
 	resp, err := client.Do(request)
 
