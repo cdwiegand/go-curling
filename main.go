@@ -17,34 +17,34 @@ type CurlContext struct {
 	method         string
 	silentFail     bool
 	output         string
-	headerout      string
-	agentout       string
-	the_url        string
+	headerOutput   string
+	agentOutput    string
+	theUrl         string
 	ignoreBadCerts bool
 }
 
 func main() {
 	ctx := &CurlContext{
-		the_url: "",
+		theUrl: "",
 	}
 
 	flag.StringVarP(&ctx.method, "method", "X", "GET", "HTTP method to use")
 	flag.StringVarP(&ctx.output, "output", "o", "-", "Where to output results")
-	flag.StringVarP(&ctx.headerout, "dump-header", "D", "/dev/null", "Where to output headers")
-	flag.StringVarP(&ctx.agentout, "user-agent", "A", "go-curling/1", "User-agent to use")
+	flag.StringVarP(&ctx.headerOut, "dump-header", "D", "/dev/null", "Where to output headers")
+	flag.StringVarP(&ctx.agentOut, "user-agent", "A", "go-curling/1", "User-agent to use")
 	flag.BoolVarP(&ctx.silentFail, "silent", "f", false, "If fail do not emit contents just return fail exit code (-6)")
 	flag.BoolVarP(&ctx.ignoreBadCerts, "insecure", "k", false, "Ignore invalid SSL certificates")
 	flag.Parse()
 
-	ctx.the_url = strings.Join(flag.Args(), " ")
+	ctx.theUrl = strings.Join(flag.Args(), " ")
 
-	if ctx.the_url == "" {
+	if ctx.theUrl == "" {
 		if !ctx.silentFail {
 			log.Fatalln("URL must be specified last.")
 		}
 		os.Exit(-8)
 	} else {
-		u, err := url.Parse(ctx.the_url)
+		u, err := url.Parse(ctx.theUrl)
 		changed := false
 		if err != nil {
 			panic(err)
@@ -58,20 +58,20 @@ func main() {
 			changed = true
 		}
 		if changed {
-			ctx.the_url = u.String()
+			ctx.theUrl = u.String()
 		}
 	}
 
 	run(ctx)
 }
 func run(ctx *CurlContext) {
-	request, err := http.NewRequest(ctx.method, ctx.the_url, nil)
+	request, err := http.NewRequest(ctx.method, ctx.the_theUrlurl, nil)
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
 	if ctx.ignoreBadCerts {
 		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 	client := &http.Client{Transport: customTransport}
-	request.Header.Set("User-Agent", ctx.agentout)
+	request.Header.Set("User-Agent", ctx.agentOut)
 	resp, err := client.Do(request)
 
 	if resp != nil {
@@ -84,10 +84,10 @@ func run(ctx *CurlContext) {
 			}
 
 			headerString := strings.Join(formatResponseHeaders(resp), "\n")
-			if ctx.headerout == ctx.output {
+			if ctx.headerOut == ctx.output {
 				bytesOut := []byte(headerString)
 				bytesOut = append(bytesOut, respBody...)
-				writeToFileBytes(ctx.headerout, bytesOut)
+				writeToFileBytes(ctx.headerOut, bytesOut)
 			} else {
 				writeToFileBytes(ctx.headerout, []byte(headerString))
 				writeToFileBytes(ctx.output, respBody)
@@ -98,7 +98,7 @@ func run(ctx *CurlContext) {
 	if err != nil {
 		if !ctx.silentFail {
 			if resp == nil {
-				log.Fatalf("Was unable to query URL %v", ctx.the_url)
+				log.Fatalf("Was unable to query URL %v", ctx.theUrl)
 			} else {
 				log.Fatalf("Failed with error code %d", resp.StatusCode)
 			}
