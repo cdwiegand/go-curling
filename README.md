@@ -9,10 +9,17 @@ All command line options *NO LONGER* needs to be specified before the URL - this
 | -- | -- | -- | -- |
 | `-X` | `--method` | `GET` | HTTP method to use |
 | `-o` | `--output` | `-` | Where to output results |
-| `-D` | `--dump-header` | `/dev/null` | Where to output headers |
+| `-D` | `--dump-header` | `/dev/null` | Where to output headers separately |
 | `-A` | `--user-agent` | `go-curling/1` | User-agent to use |
-| `-f` | `--silent` | `false` | If fail do not emit contents just return fail exit code (-6) |
 | `-k` | `--insecure` | `false` | Ignore invalid SSL certificates |
+| `-f` | `--fail` | `false` | If fail do not emit contents just return fail exit code (-6) |
+| `-s` | `--silent` | `false` | Do not emit any output (unless overridden with `show-error`) |
+| `-S` | `--show-error` | `false` | Show error info even if silent/fail modes on |
+| `-i` | `--include` | `false` | Prepend headers returned to body output |
+| `-I` | `--head` | `false` | Only emit headers returned, ignore body |
+| `-u` | `--user` |  | Username:Password for HTTP Basic Authentication |
+| `-e` | `--referer` |  | HTTP referer header |
+|  | `--stderr` | `/dev/stderr` | Log errors to this replacement for stderr |
 
 # Examples
 
@@ -25,12 +32,10 @@ curl https://my.local.test:443 -k
 
 # Using in a Dockerfile
 ```
-COPY --from=ghcr.io/cdwiegand/cdwiegand/go-curling:latest /curl /usr/bin/curl
-HEALTHCHECK CMD curl -A "HealthCheck-Docker/1.0" http://localhost:80
+COPY --from=cdwiegand/go-curling:latest /curl /usr/bin/curl
+# OR COPY --from=ghcr.io/cdwiegand/go-curling:latest /curl /usr/bin/curl
+HEALTHCHECK CMD curl -f http://localhost:80
 ```
 
-Alternative:
-```
-COPY --from=cdwiegand/go-curling:latest /curl /usr/bin/curl
-HEALTHCHECK CMD curl -A "HealthCheck-Docker/1.0" http://localhost:80
-```
+# Needs
+- Needs automated tests, esp. against a known HTTP server that can return explicit info like our referer, basic auth info, etc.. echoing back for testing purposes.
