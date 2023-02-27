@@ -2,13 +2,14 @@ package main
 
 import (
 	"crypto/tls"
-	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+
+	flag "github.com/spf13/pflag"
 )
 
 type CurlContext struct {
@@ -26,20 +27,15 @@ func main() {
 		the_url: "",
 	}
 
-	flag.StringVar(&ctx.method, "X", "GET", "HTTP method to use")
-	flag.StringVar(&ctx.output, "o", "-", "Where to output results")
-	flag.StringVar(&ctx.headerout, "D", "/dev/null", "Where to output headers")
-	flag.StringVar(&ctx.agentout, "A", "go-curling/1", "User-agent to use")
-	flag.BoolVar(&ctx.silentFail, "f", false, "If fail do not emit contents just return fail exit code (-6)")
-	flag.BoolVar(&ctx.ignoreBadCerts, "k", false, "Ignore invalid SSL certificates")
+	flag.StringVarP(&ctx.method, "method", "X", "GET", "HTTP method to use")
+	flag.StringVarP(&ctx.output, "output", "o", "-", "Where to output results")
+	flag.StringVarP(&ctx.headerout, "dump-header", "D", "/dev/null", "Where to output headers")
+	flag.StringVarP(&ctx.agentout, "user-agent", "A", "go-curling/1", "User-agent to use")
+	flag.BoolVarP(&ctx.silentFail, "silent", "f", false, "If fail do not emit contents just return fail exit code (-6)")
+	flag.BoolVarP(&ctx.ignoreBadCerts, "insecure", "k", false, "Ignore invalid SSL certificates")
 	flag.Parse()
 
-	for _, val := range flag.Args() {
-		val2 := strings.TrimSpace(strings.ToLower(val))
-		if strings.HasPrefix(val2, "https://") || strings.HasPrefix(val2, "http://") {
-			ctx.the_url = val
-		}
-	}
+	ctx.the_url = strings.Join(flag.Args(), " ")
 
 	if ctx.the_url == "" {
 		if !ctx.silentFail {
