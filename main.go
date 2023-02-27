@@ -10,42 +10,51 @@ import (
 	"strings"
 )
 
-func main() {
-	the_url := ""
-	var method string
-	var silentFail bool
-	var output string
-	var headerout string
-	var agentout string
+type CurlContext struct {
+	method         string
+	silentFail     bool
+	output         string
+	headerout      string
+	agentout       string
+	the_url        string
+	ignoreBadCerts bool
+}
 
-	flag.StringVar(&method, "X", "GET", "HTTP method to use")
-	flag.StringVar(&output, "o", "-", "Where to output results")
-	flag.StringVar(&headerout, "D", "/dev/null", "Where to output headers")
-	flag.StringVar(&agentout, "A", "go-curling/1", "User-agent to use")
-	flag.BoolVar(&silentFail, "f", false, "If fail do not emit contents just return fail exit code (-6).")
+func main() {
+	ctx := &CurlContext{
+		the_url: "",
+	}
+
+	flag.StringVar(&ctx.method, "X", "GET", "HTTP method to use")
+	flag.StringVar(&ctx.output, "o", "-", "Where to output results")
+	flag.StringVar(&ctx.headerout, "D", "/dev/null", "Where to output headers")
+	flag.StringVar(&ctx.agentout, "A", "go-curling/1", "User-agent to use")
+	flag.BoolVar(&ctx.silentFail, "f", false, "If fail do not emit contents just return fail exit code (-6)")
 	flag.Parse()
 
 	for _, val := range flag.Args() {
 		val2 := strings.TrimSpace(strings.ToLower(val))
 		if strings.HasPrefix(val2, "https://") || strings.HasPrefix(val2, "http://") {
-			the_url = val
+			ctx.the_url = val
 		}
 	}
 
-	if the_url == "" {
-		if !silentFail {
+	if ctx.the_url == "" {
+		if !ctx.silentFail {
 			log.Fatalln("URL must be specified last.")
 		}
 		os.Exit(-8)
 	}
 
-	request, err := http.NewRequest(method, the_url, nil)
-	client := new(http.Client)
-	request.Header.Set("User-Agent", agentout)
+	run(ctx)
+}
+func run(ctx *CurlContext) {
+	request, err := http.NewRequest(ctx.method, ctx.the_url, nil)
+	request.Header.Set("User-Agent", ctx.agentout)
 	resp, err := client.Do(request)
 
 	if resp != nil {
-		if err == nil || !silentFail {
+		if err == nil || !ctx.silentFail {
 			// emit body
 			var respBody []byte
 			if resp.Body != nil {
@@ -54,21 +63,21 @@ func main() {
 			}
 
 			headerString := strings.Join(formatResponseHeaders(resp), "\n")
-			if headerout == output {
+			if ctx.headerout == ctx.output {
 				bytesOut := []byte(headerString)
 				bytesOut = append(bytesOut, respBody...)
-				writeToFileBytes(headerout, bytesOut)
+				writeToFileBytes(ctx.headerout, bytesOut)
 			} else {
-				writeToFileBytes(headerout, []byte(headerString))
-				writeToFileBytes(output, respBody)
+				writeToFileBytes(ctx.headerout, []byte(headerString))
+				writeToFileBytes(ctx.output, respBody)
 			}
 		}
 	}
 
 	if err != nil {
-		if !silentFail {
+		if !ctx.silentFail {
 			if resp == nil {
-				log.Fatalf("Was unable to query URL %v", the_url)
+				log.Fatalf("Was unable to query URL %v", ctx.the_url)
 			} else {
 				log.Fatalf("Failed with error code %d", resp.StatusCode)
 			}
