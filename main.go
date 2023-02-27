@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
@@ -42,6 +43,23 @@ func main() {
 			log.Fatalln("URL must be specified last.")
 		}
 		os.Exit(-8)
+	} else {
+		u, err := url.Parse(ctx.the_url)
+		changed := false
+		if err != nil {
+			panic(err)
+		}
+		if u.Scheme == "" {
+			u.Scheme = "http"
+			changed = true
+		}
+		if u.Host == "" {
+			u.Host = "localhost"
+			changed = true
+		}
+		if changed {
+			ctx.the_url = u.String()
+		}
 	}
 
 	run(ctx)
