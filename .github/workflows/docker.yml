@@ -15,6 +15,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+      - name: Log into Docker Hub Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v2
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
       - name: Log into Github Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v2
@@ -34,3 +41,4 @@ jobs:
           push: true
           tags: |
             ghcr.io/${{ github.actor }}/${{ github.repository }}:latest
+            docker.io/${{ secrets.DOCKER_HUB_USERNAME }}/${{ secrets.DOCKER_HUB_REPOSITORY }}:latest
