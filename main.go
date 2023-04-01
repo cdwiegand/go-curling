@@ -38,7 +38,7 @@ func main() {
 
 	flag.StringVar(&ctx.errorOutput, "stderr", "", "Log errors to this replacement for stderr")
 	flag.StringVarP(&ctx.method, "method", "X", "GET", "HTTP method to use")
-	flag.StringVarP(&ctx.output, "output", "o", "-", "Where to output results")
+	flag.StringVarP(&ctx.output, "output", "o", "stdout", "Where to output results")
 	flag.StringVarP(&ctx.headerOutput, "dump-header", "D", "/dev/null", "Where to output headers")
 	flag.StringVarP(&ctx.userAgent, "user-agent", "A", "go-curling/1", "User-agent to use")
 	flag.StringVarP(&ctx.userAuth, "user", "u", "", "User:password for HTTP authentication")
@@ -189,13 +189,15 @@ func formatResponseHeaders(resp *http.Response) (res []string) {
 	return
 }
 func writeToFileBytes(file string, body []byte) {
-	if file == "/dev/null" {
+	if file == "/dev/null" || file == "null" {
 		// do nothing
-	} else if file == "/dev/stderr" {
+	} else if file == "/dev/stderr" || file == "stderr" {
 		os.Stderr.Write(body)
-	} else if file == "-" || file == "/dev/stdout" {
+	} else if file == "-" || file == "/dev/stdout" || file == "stdout" {
 		// stdout
 		os.Stdout.Write(body)
+	} else if file == "" {
+		// do nothing, no file to push to..
 	} else {
 		// output to file
 		os.WriteFile(file, body, 0644)
