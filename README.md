@@ -39,3 +39,8 @@ HEALTHCHECK CMD curl -f http://localhost:80
 
 # Needs
 - Needs automated tests, esp. against a known HTTP server that can return explicit info like our referer, basic auth info, etc.. echoing back for testing purposes.
+
+# Error Codes
+- 6: Response present, but a status code >= 400 (e.g. failing) was returned
+- 7: No response, but an error was thrown
+- 8: Invalid/missing URL

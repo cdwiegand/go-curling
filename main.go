@@ -32,11 +32,38 @@ type CurlContext struct {
 }
 
 func main() {
-	ctx := &CurlContext{
-		theUrl: "",
+	ctx := &CurlContext{}
+	parseArgs(ctx)
+	request := buildRequest(ctx)
+	client := buildClient(ctx)
+	resp, err := client.Do(request)
+	processResponse(ctx, resp, err)
+}
+func processResponse(ctx *CurlContext, resp *http.Response, err error) {
+	if resp != nil {
+		if resp.StatusCode >= 400 {
+			// error
+			if !ctx.silentFail {
+				handleBodyResponse(ctx, resp, err)
+			} else {
+				logErrorF(ctx, "Failed with error code %d", resp.StatusCode)
+			}
+			os.Exit(6) // arbitrary
+		} else {
+			// success
+			handleBodyResponse(ctx, resp, err)
+		}
+	} else if err != nil {
+		if resp == nil {
+			logErrorF(ctx, "Was unable to query URL %v", ctx.theUrl)
+		} else {
+			logErrorF(ctx, "Failed with error code %d", resp.StatusCode)
+		}
+		os.Exit(7) // arbitrary
 	}
-
-	flag.StringVar(&ctx.errorOutput, "stderr", "", "Log errors to this replacement for stderr")
+}
+func parseArgs(ctx *CurlContext) {
+	flag.StringVar(&ctx.errorOutput, "stderr", "stderr", "Log errors to this replacement for stderr")
 	flag.StringVarP(&ctx.method, "method", "X", "GET", "HTTP method to use")
 	flag.StringVarP(&ctx.output, "output", "o", "stdout", "Where to output results")
 	flag.StringVarP(&ctx.headerOutput, "dump-header", "D", "/dev/null", "Where to output headers")
@@ -51,6 +78,7 @@ func main() {
 	flag.BoolVarP(&ctx.includeHeadersInMainOutput, "include", "i", false, "Include headers (prepended to body content)")
 	flag.Parse()
 
+	// do sanity checks and "fix" some parts left remaining from flag parsing
 	ctx.theUrl = strings.Join(flag.Args(), " ")
 	if ctx.silentFail || ctx.isSilent {
 		ctx.isSilent = true   // implied
@@ -62,7 +90,7 @@ func main() {
 
 	if ctx.theUrl == "" {
 		logError(ctx, "URL was not found in command line.")
-		os.Exit(-8)
+		os.Exit(8)
 	} else {
 		u, err := url.Parse(ctx.theUrl)
 		changed := false
@@ -81,24 +109,25 @@ func main() {
 			ctx.theUrl = u.String()
 		}
 	}
-
-	run(ctx)
 }
 func logErrorF(ctx *CurlContext, entry string, value interface{}) {
 	logError(ctx, fmt.Sprintf(entry, value))
 }
 func logError(ctx *CurlContext, entry string) {
-	if (ctx.isSilent || ctx.silentFail) && !ctx.showErrorEvenIfSilent {
-		writeToFileBytes(ctx.errorOutput, []byte(entry))
+	if (!ctx.isSilent && !ctx.silentFail) || !ctx.showErrorEvenIfSilent {
+		writeToFileBytes(ctx.errorOutput, []byte(entry+"\n"))
 	}
 }
-func run(ctx *CurlContext) {
-	request, err := http.NewRequest(ctx.method, ctx.theUrl, nil)
+func buildClient(ctx *CurlContext) (client *http.Client) {
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
 	if ctx.ignoreBadCerts {
 		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
-	client := &http.Client{Transport: customTransport}
+	client = &http.Client{Transport: customTransport}
+	return
+}
+func buildRequest(ctx *CurlContext) (request *http.Request) {
+	request, _ = http.NewRequest(ctx.method, ctx.theUrl, nil)
 	if ctx.userAgent != "" {
 		request.Header.Set("User-Agent", ctx.userAgent)
 	} else {
@@ -117,29 +146,7 @@ func run(ctx *CurlContext) {
 		}
 		request.SetBasicAuth(auths[0], auths[1])
 	}
-	resp, err := client.Do(request)
-
-	if resp != nil {
-		if resp.StatusCode >= 400 {
-			// error
-			if !ctx.silentFail {
-				handleBodyResponse(ctx, resp, err)
-			} else {
-				logErrorF(ctx, "Failed with error code %d", resp.StatusCode)
-			}
-			os.Exit(-6) // arbitrary
-		} else {
-			// success
-			handleBodyResponse(ctx, resp, err)
-		}
-	} else if err != nil {
-		if resp == nil {
-			logErrorF(ctx, "Was unable to query URL %v", ctx.theUrl)
-		} else {
-			logErrorF(ctx, "Failed with error code %d", resp.StatusCode)
-		}
-		os.Exit(-6) // arbitrary
-	}
+	return request
 }
 func handleBodyResponse(ctx *CurlContext, resp *http.Response, err error) {
 	// emit body
