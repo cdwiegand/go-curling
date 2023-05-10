@@ -294,7 +294,7 @@ func buildClient(ctx *CurlContext) (client *http.Client) {
 	return
 }
 func buildRequest(ctx *CurlContext) (request *http.Request) {
-	request, _ = http.NewRequest(ctx.method, ctx.theUrl, ctx._body)
+	request, _ = http.NewRequest(strings.ToUpper(ctx.method), ctx.theUrl, ctx._body)
 	if ctx._body_contentType != "" {
 		request.Header.Add("Content-Type", ctx._body_contentType)
 	}

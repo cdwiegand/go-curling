@@ -54,6 +54,8 @@ All command line options *NO LONGER* needs to be specified before the URL - this
 
 # Tests (manual for now)
 ```
+go run ./main.go https://httpbin.org/get?test=one
+
 go run ./main.go -d test=one https://httpbin.org/post
 go run ./main.go -d test=@raw.data https://httpbin.org/post
 go run ./main.go -d @form.data https://httpbin.org/post
@@ -63,4 +65,6 @@ go run ./main.go -F test=@raw.data https://httpbin.org/post
 go run ./main.go -F @form.data https://httpbin.org/post
 
 go run ./main.go -T raw.data https://httpbin.org/post
+
+go run ./main.go https://httpbin.org/delete -X DELETE
 ```
