@@ -9,7 +9,6 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
-	"net/textproto"
 	"net/url"
 	"os"
 	"path"
@@ -131,6 +130,7 @@ func parseArgs(ctx *CurlContext) {
 	if ctx.theUrl == "" && tempUrl != "" {
 		ctx.theUrl = tempUrl
 	}
+	ctx.userAgent = strings.ReplaceAll(ctx.userAgent, "##DE"+"V##", "dev-branch") // split as I want to keep proper date versions unmunged
 
 	if ctx.silentFail || ctx.isSilent {
 		ctx.isSilent = true   // implied
@@ -169,35 +169,55 @@ func parseArgs(ctx *CurlContext) {
 }
 func handleFormsAndFiles(ctx *CurlContext) {
 	if ctx.uploadFile != "" {
-		f, err := os.Open(ctx.uploadFile)
+		f, err := os.ReadFile(ctx.uploadFile)
 		if err != nil {
 			logErrorF(ctx, "Failed to read file %s", ctx.uploadFile)
 			os.Exit(9)
 		}
-		defer f.Close()
 		mime := mime.TypeByExtension(path.Ext(ctx.uploadFile))
 		if mime == "" {
 			mime = "application/octet-stream"
 		}
-		ctx.SetBody(f, mime, "POST")
+		body := &bytes.Buffer{}
+		body.Write(f)
+		ctx.SetBody(body, mime, "POST")
 
 	} else if len(ctx.form_encoded) > 0 {
 		formBody := url.Values{}
 		for _, item := range ctx.form_encoded {
-			splits := strings.SplitN(item, "=", 2)
-			name := splits[0]
-			value := splits[1]
-
-			if strings.HasPrefix(value, "@") {
-				valueRaw, err := os.ReadFile(value)
+			if strings.HasPrefix(item, "@") {
+				filename := strings.TrimPrefix(item, "@")
+				fullForm, err := os.ReadFile(filename)
 				if err != nil {
-					logErrorF(ctx, "Failed to read file %s", value)
+					logErrorF(ctx, "Failed to read file %s", filename)
 					os.Exit(9)
 				}
-				//formBody.Set(name, base64.StdEncoding.EncodeToString(valueRaw))
-				formBody.Set(name, string(valueRaw))
+				formLines := strings.Split(string(fullForm), "\n")
+				for _, line := range formLines {
+					splits := strings.SplitN(line, "=", 2)
+					name := splits[0]
+					value := splits[1]
+					formBody.Set(name, value)
+				}
+			} else {
+				splits := strings.SplitN(item, "=", 2)
+				os.Stdout.WriteString(item)
+				name := splits[0]
+				value := splits[1]
+
+				if strings.HasPrefix(value, "@") {
+					filename := strings.TrimPrefix(value, "@")
+					valueRaw, err := os.ReadFile(filename)
+					if err != nil {
+						logErrorF(ctx, "Failed to read file %s", filename)
+						os.Exit(9)
+					}
+					//formBody.Set(name, base64.StdEncoding.EncodeToString(valueRaw))
+					formBody.Set(name, string(valueRaw))
+				} else {
+					formBody.Set(name, value)
+				}
 			}
-			formBody.Set(name, value)
 		}
 		body := strings.NewReader(formBody.Encode())
 		ctx.SetBody(body, "application/x-www-form-urlencoded", "POST")
@@ -207,23 +227,42 @@ func handleFormsAndFiles(ctx *CurlContext) {
 		writer := multipart.NewWriter(body)
 
 		for _, item := range ctx.form_multipart {
-			splits := strings.SplitN(item, "=", 2)
-			name := splits[0]
-			value := splits[1]
-
-			part, _ := writer.CreatePart(textproto.MIMEHeader{
-				"Name": []string{name},
-			})
-			if strings.HasPrefix(value, "@") {
-				valueRaw, err := os.ReadFile(value)
+			if strings.HasPrefix(item, "@") {
+				filename := strings.TrimPrefix(item, "@")
+				fullForm, err := os.ReadFile(filename)
 				if err != nil {
-					logErrorF(ctx, "Failed to read file %s", value)
+					logErrorF(ctx, "Failed to read file %s", filename)
 					os.Exit(9)
 				}
-				part.Write(valueRaw)
+				formLines := strings.Split(string(fullForm), "\n")
+				for _, line := range formLines {
+					splits := strings.SplitN(line, "=", 2)
+					name := splits[0]
+					value := splits[1]
+					part, _ := writer.CreateFormField(name)
+					part.Write([]byte(value))
+				}
+			} else {
+				splits := strings.SplitN(item, "=", 2)
+				name := splits[0]
+				value := splits[1]
+
+				if strings.HasPrefix(value, "@") {
+					filename := strings.TrimPrefix(value, "@")
+					valueRaw, err := os.ReadFile(filename)
+					if err != nil {
+						logErrorF(ctx, "Failed to read file %s", filename)
+						os.Exit(9)
+					}
+					part, _ := writer.CreateFormFile(name, path.Base(filename))
+					part.Write(valueRaw)
+				} else {
+					part, _ := writer.CreateFormField(name)
+					part.Write([]byte(value))
+				}
 			}
-			writer.Close()
 		}
+		writer.Close()
 
 		ctx.SetBody(body, "multipart/form-data; boundary="+writer.Boundary(), "POST")
 	}

@@ -20,8 +20,8 @@ This program was designed to replace the curl that is no longer shipped with Mic
 | `-e` | `--referer` | (none) | URI | HTTP referer header |
 | `-b` | `--cookie` | (none) | HTTP cookie string or `@`file-path | Specifies cookie header (if `=` present) or file from which to read cookies from, read-only |
 | `-c` | `--cookie-jar` | (none) | file-path | Specifies file to which to write cookies to |
-| `-d` | `--data` | (none) | name=value OR `@`file-path | Send next parameter as POST / `application/x-www-form-urlencoded` |
-| `-F` | `--form` | (none) | name=value OR `@`file-path |Send next parameter as POST / `multipart/form-data` |
+| `-d` | `--data` | (none) | name=value OR name=`@`file-path | Send next parameter as POST / `application/x-www-form-urlencoded` |
+| `-F` | `--form` | (none) | name=value OR name=`@`file-path |Send next parameter as POST / `multipart/form-data` |
 | `-T` | `--upload-file` | (none) | file-path | File to upload (PUT method by default) |
 
 # Examples
@@ -51,3 +51,16 @@ HEALTHCHECK CMD curl -f http://localhost:80
 
 # Command Line 
 All command line options *NO LONGER* needs to be specified before the URL - this was a limitation of golang's `flag` module, but I have upgraded to using `spf13/pflag` so this is no longer a problem.
+
+# Tests (manual for now)
+```
+go run ./main.go -d test=one https://httpbin.org/post
+go run ./main.go -d test=@raw.data https://httpbin.org/post
+go run ./main.go -d @form.data https://httpbin.org/post
+
+go run ./main.go -F test=one https://httpbin.org/post
+go run ./main.go -F test=@raw.data https://httpbin.org/post
+go run ./main.go -F @form.data https://httpbin.org/post
+
+go run ./main.go -T raw.data https://httpbin.org/post
+```
