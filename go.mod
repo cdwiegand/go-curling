@@ -3,6 +3,7 @@ module github.com/cdwiegand/go-curling
 go 1.19
 
 require (
+	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/juju/go4 v0.0.0-20160222163258-40d72ab9641a // indirect
 	github.com/juju/persistent-cookiejar v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect

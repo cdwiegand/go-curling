@@ -20,6 +20,9 @@ This program was designed to replace the curl that is no longer shipped with Mic
 | `-e` | `--referer` | (none) | URI | HTTP referer header |
 | `-b` | `--cookie` | (none) | HTTP cookie string or `@`file-path | Specifies cookie header (if `=` present) or file from which to read cookies from, read-only |
 | `-c` | `--cookie-jar` | (none) | file-path | Specifies file to which to write cookies to |
+| `-d` | `--data` | (none) | name=value OR `@`file-path | Send next parameter as POST / `application/x-www-form-urlencoded` |
+| `-F` | `--form` | (none) | name=value OR `@`file-path |Send next parameter as POST / `multipart/form-data` |
+| `-T` | `--upload-file` | (none) | file-path | File to upload (PUT method by default) |
 
 # Examples
 
@@ -44,6 +47,7 @@ HEALTHCHECK CMD curl -f http://localhost:80
 - 6: Response present, but a status code >= 400 (e.g. failing) was returned
 - 7: No response, but an error was thrown
 - 8: Invalid/missing URL
+- 9: Unable to read upload file
 
 # Command Line 
 All command line options *NO LONGER* needs to be specified before the URL - this was a limitation of golang's `flag` module, but I have upgraded to using `spf13/pflag` so this is no longer a problem.

@@ -2,12 +2,17 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/tls"
 	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"net/url"
 	"os"
+	"path"
 	"sort"
 	"strings"
 
@@ -35,11 +40,33 @@ type CurlContext struct {
 	cookies                    []string
 	cookieJar                  string
 	_jar                       cookieJar.Jar
+	uploadFile                 string
+	form_encoded               []string
+	form_multipart             []string
+	_body_contentType          string
+	_body                      io.Reader
+}
+
+func (ctx *CurlContext) SetBody(body io.Reader, mimeType string, httpMethod string) {
+	ctx._body = body
+	ctx._body_contentType = mimeType
+	ctx.SetMethodIfNotSet(httpMethod)
+}
+func (ctx *CurlContext) SetMethodIfNotSet(httpMethod string) {
+	if ctx.method == "" {
+		ctx.method = httpMethod
+	}
 }
 
 func main() {
 	ctx := &CurlContext{}
 	parseArgs(ctx)
+
+	if ctx.theUrl == "" {
+		logError(ctx, "URL was not found in command line.")
+		os.Exit(8)
+	}
+
 	request := buildRequest(ctx)
 	client := buildClient(ctx)
 	resp, err := client.Do(request)
@@ -88,7 +115,10 @@ func parseArgs(ctx *CurlContext) {
 	flag.BoolVarP(&ctx.headOnly, "head", "I", false, "Only return headers (ignoring body content)")
 	flag.BoolVarP(&ctx.includeHeadersInMainOutput, "include", "i", false, "Include headers (prepended to body content)")
 	flag.StringSliceVarP(&ctx.cookies, "cookie", "b", empty, "HTTP cookie, raw, can be repeated")
+	flag.StringSliceVarP(&ctx.form_encoded, "data", "d", empty, "HTML form data, set mime type to 'application/x-www-form-urlencoded'")
+	flag.StringSliceVarP(&ctx.form_multipart, "form", "F", empty, "HTML form data, set mime type to 'multipart/form-data'")
 	flag.StringVarP(&ctx.cookieJar, "cookie-jar", "c", "", "File for storing (and reading) cookies")
+	flag.StringVarP(&ctx.uploadFile, "upload-file", "T", "", "Raw file to PUT (default) to the url given, not encoded")
 	flag.Parse()
 
 	if ctx.version {
@@ -97,19 +127,23 @@ func parseArgs(ctx *CurlContext) {
 	}
 
 	// do sanity checks and "fix" some parts left remaining from flag parsing
-	ctx.theUrl = strings.Join(flag.Args(), " ")
+	tempUrl := strings.Join(flag.Args(), " ")
+	if ctx.theUrl == "" && tempUrl != "" {
+		ctx.theUrl = tempUrl
+	}
+
 	if ctx.silentFail || ctx.isSilent {
 		ctx.isSilent = true   // implied
 		ctx.silentFail = true // both are the same thing right now, we only emit errors (or content)
 	}
-	if ctx.headOnly && ctx.headerOutput == "/dev/null" {
-		ctx.headerOutput = "-"
+	if ctx.headOnly {
+		if ctx.headerOutput == "/dev/null" {
+			ctx.headerOutput = "-"
+		}
+		ctx.SetMethodIfNotSet("HEAD")
 	}
 
-	if ctx.theUrl == "" {
-		logError(ctx, "URL was not found in command line.")
-		os.Exit(8)
-	} else {
+	if ctx.theUrl != "" {
 		u, err := url.Parse(ctx.theUrl)
 		changed := false
 		if err != nil {
@@ -126,6 +160,72 @@ func parseArgs(ctx *CurlContext) {
 		if changed {
 			ctx.theUrl = u.String()
 		}
+	}
+
+	handleFormsAndFiles(ctx)
+
+	// this should be LAST!
+	ctx.SetMethodIfNotSet("GET")
+}
+func handleFormsAndFiles(ctx *CurlContext) {
+	if ctx.uploadFile != "" {
+		f, err := os.Open(ctx.uploadFile)
+		if err != nil {
+			logErrorF(ctx, "Failed to read file %s", ctx.uploadFile)
+			os.Exit(9)
+		}
+		defer f.Close()
+		mime := mime.TypeByExtension(path.Ext(ctx.uploadFile))
+		if mime == "" {
+			mime = "application/octet-stream"
+		}
+		ctx.SetBody(f, mime, "POST")
+
+	} else if len(ctx.form_encoded) > 0 {
+		formBody := url.Values{}
+		for _, item := range ctx.form_encoded {
+			splits := strings.SplitN(item, "=", 2)
+			name := splits[0]
+			value := splits[1]
+
+			if strings.HasPrefix(value, "@") {
+				valueRaw, err := os.ReadFile(value)
+				if err != nil {
+					logErrorF(ctx, "Failed to read file %s", value)
+					os.Exit(9)
+				}
+				//formBody.Set(name, base64.StdEncoding.EncodeToString(valueRaw))
+				formBody.Set(name, string(valueRaw))
+			}
+			formBody.Set(name, value)
+		}
+		body := strings.NewReader(formBody.Encode())
+		ctx.SetBody(body, "application/x-www-form-urlencoded", "POST")
+
+	} else if len(ctx.form_multipart) > 0 {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		for _, item := range ctx.form_multipart {
+			splits := strings.SplitN(item, "=", 2)
+			name := splits[0]
+			value := splits[1]
+
+			part, _ := writer.CreatePart(textproto.MIMEHeader{
+				"Name": []string{name},
+			})
+			if strings.HasPrefix(value, "@") {
+				valueRaw, err := os.ReadFile(value)
+				if err != nil {
+					logErrorF(ctx, "Failed to read file %s", value)
+					os.Exit(9)
+				}
+				part.Write(valueRaw)
+			}
+			writer.Close()
+		}
+
+		ctx.SetBody(body, "multipart/form-data; boundary="+writer.Boundary(), "POST")
 	}
 }
 func logErrorF(ctx *CurlContext, entry string, value interface{}) {
@@ -155,7 +255,10 @@ func buildClient(ctx *CurlContext) (client *http.Client) {
 	return
 }
 func buildRequest(ctx *CurlContext) (request *http.Request) {
-	request, _ = http.NewRequest(ctx.method, ctx.theUrl, nil)
+	request, _ = http.NewRequest(ctx.method, ctx.theUrl, ctx._body)
+	if ctx._body_contentType != "" {
+		request.Header.Add("Content-Type", ctx._body_contentType)
+	}
 	if ctx.userAgent != "" {
 		request.Header.Set("User-Agent", ctx.userAgent)
 	} else {
@@ -179,6 +282,7 @@ func buildRequest(ctx *CurlContext) (request *http.Request) {
 		}
 		request.SetBasicAuth(auths[0], auths[1])
 	}
+
 	return request
 }
 func handleBodyResponse(ctx *CurlContext, resp *http.Response, err error) {
