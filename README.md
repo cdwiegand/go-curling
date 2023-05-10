@@ -1,6 +1,9 @@
 # Purpose
 This program was designed to replace the curl that is no longer shipped with Microsoft's dotnet core docker containers. Removing that kept breaking all of my upgraded containers, and I really wanted curl back for healthchecks without having to `apt install` and `apt clean` and cleaning out the cache. So I built a simple curl that handled the healthcheck calls I was doing. I have since started expanding it to meet more needs of the [original curl](https://curl.se/), while remaining golang based.
 
+# Differences between original curl and go-curling
+Not all functionality is supported, but one difference that makes this not 100% drop-in would be that the `--cookie-jar`/`-c` is both read and write - the `--cookie` / `-b` command only specifies a raw HTTP cookie on the command line - it is not usable as a file to read a prior cookie jar, due to the custom JSON format for storing cookies. So normally if you want to use cookies to login a session, just use `--cookie-jar`/`-c` in each all - no need to specify `--cookie`/`-b` unless you want to specify a "starting" cookie value.
+
 # Arguments
 | short | long form | default | type | description |
 | -- | -- | -- | -- | -- |
