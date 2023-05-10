@@ -15,7 +15,7 @@ import (
 	"sort"
 	"strings"
 
-	cookieJar "github.com/juju/persistent-cookiejar"
+	cookieJar "github.com/orirawlings/persistent-cookiejar"
 	flag "github.com/spf13/pflag"
 	"golang.org/x/net/publicsuffix"
 )
@@ -38,7 +38,7 @@ type CurlContext struct {
 	errorOutput                string
 	cookies                    []string
 	cookieJar                  string
-	_jar                       cookieJar.Jar
+	_jar                       *cookieJar.Jar
 	uploadFile                 string
 	form_encoded               []string
 	form_multipart             []string
@@ -59,6 +59,7 @@ func (ctx *CurlContext) SetMethodIfNotSet(httpMethod string) {
 
 func main() {
 	ctx := &CurlContext{}
+
 	parseArgs(ctx)
 
 	if ctx.theUrl == "" {
@@ -73,7 +74,11 @@ func main() {
 }
 func processResponse(ctx *CurlContext, resp *http.Response, err error) {
 	if resp != nil {
-		ctx._jar.Save() // is ignored if jar's filename is empty
+		os.Stdout.WriteString("saving to jar ")
+		err := ctx._jar.Save() // is ignored if jar's filename is empty
+		if err != nil {
+			logErrorF(ctx, "Failed to save cookies to jar %d", err.Error())
+		}
 
 		if resp.StatusCode >= 400 {
 			// error
@@ -113,10 +118,10 @@ func parseArgs(ctx *CurlContext) {
 	flag.BoolVarP(&ctx.showErrorEvenIfSilent, "show-error", "S", false, "Show error info even if silent mode on")
 	flag.BoolVarP(&ctx.headOnly, "head", "I", false, "Only return headers (ignoring body content)")
 	flag.BoolVarP(&ctx.includeHeadersInMainOutput, "include", "i", false, "Include headers (prepended to body content)")
-	flag.StringSliceVarP(&ctx.cookies, "cookie", "b", empty, "HTTP cookie, raw, can be repeated")
+	flag.StringSliceVarP(&ctx.cookies, "cookie", "b", empty, "HTTP cookie, raw HTTP cookie only (use -c for cookie jar files)")
 	flag.StringSliceVarP(&ctx.form_encoded, "data", "d", empty, "HTML form data, set mime type to 'application/x-www-form-urlencoded'")
 	flag.StringSliceVarP(&ctx.form_multipart, "form", "F", empty, "HTML form data, set mime type to 'multipart/form-data'")
-	flag.StringVarP(&ctx.cookieJar, "cookie-jar", "c", "", "File for storing (and reading) cookies")
+	flag.StringVarP(&ctx.cookieJar, "cookie-jar", "c", "", "File for storing (read and write) cookies")
 	flag.StringVarP(&ctx.uploadFile, "upload-file", "T", "", "Raw file to PUT (default) to the url given, not encoded")
 	flag.Parse()
 
@@ -162,10 +167,20 @@ func parseArgs(ctx *CurlContext) {
 		}
 	}
 
+	ctx._jar = createEmptyJar(ctx)
+
 	handleFormsAndFiles(ctx)
 
 	// this should be LAST!
 	ctx.SetMethodIfNotSet("GET")
+}
+func createEmptyJar(ctx *CurlContext) (jar *cookieJar.Jar) {
+	jar, _ = cookieJar.New(&cookieJar.Options{
+		PublicSuffixList:      publicsuffix.List,
+		Filename:              ctx.cookieJar,
+		PersistSessionCookies: true,
+	})
+	return
 }
 func handleFormsAndFiles(ctx *CurlContext) {
 	if ctx.uploadFile != "" {
@@ -281,15 +296,9 @@ func buildClient(ctx *CurlContext) (client *http.Client) {
 		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	newjar, _ := cookieJar.New(&cookieJar.Options{
-		PublicSuffixList: publicsuffix.List,
-		Filename:         ctx.cookieJar,
-	})
-	ctx._jar = *newjar // save for later!
-
 	client = &http.Client{
 		Transport: customTransport,
-		Jar:       newjar,
+		Jar:       ctx._jar,
 	}
 	return
 }
