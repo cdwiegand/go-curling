@@ -15,6 +15,7 @@ import (
 )
 
 type CurlContext struct {
+	version                    bool
 	method                     string
 	silentFail                 bool
 	output                     string
@@ -63,11 +64,12 @@ func processResponse(ctx *CurlContext, resp *http.Response, err error) {
 	}
 }
 func parseArgs(ctx *CurlContext) {
+	flag.BoolVarP(&ctx.version, "version", "v", false, "Return version and exit")
 	flag.StringVar(&ctx.errorOutput, "stderr", "stderr", "Log errors to this replacement for stderr")
 	flag.StringVarP(&ctx.method, "method", "X", "GET", "HTTP method to use")
 	flag.StringVarP(&ctx.output, "output", "o", "stdout", "Where to output results")
 	flag.StringVarP(&ctx.headerOutput, "dump-header", "D", "/dev/null", "Where to output headers")
-	flag.StringVarP(&ctx.userAgent, "user-agent", "A", "go-curling/1", "User-agent to use")
+	flag.StringVarP(&ctx.userAgent, "user-agent", "A", "go-curling/##DEV##", "User-agent to use")
 	flag.StringVarP(&ctx.userAuth, "user", "u", "", "User:password for HTTP authentication")
 	flag.StringVarP(&ctx.referer, "referer", "e", "", "Referer URL to use with HTTP request")
 	flag.BoolVarP(&ctx.silentFail, "fail", "f", false, "If fail do not emit contents just return fail exit code (-6)")
@@ -77,6 +79,11 @@ func parseArgs(ctx *CurlContext) {
 	flag.BoolVarP(&ctx.headOnly, "head", "I", false, "Only return headers (ignoring body content)")
 	flag.BoolVarP(&ctx.includeHeadersInMainOutput, "include", "i", false, "Include headers (prepended to body content)")
 	flag.Parse()
+
+	if ctx.version {
+		os.Stdout.WriteString("go-curling build ##DEV##\n")
+		os.Exit(0)
+	}
 
 	// do sanity checks and "fix" some parts left remaining from flag parsing
 	ctx.theUrl = strings.Join(flag.Args(), " ")
