@@ -18,6 +18,8 @@ This program was designed to replace the curl that is no longer shipped with Mic
 | `-I` | `--head` | `false` | boolean | Only emit headers returned, ignore body |
 | `-u` | `--user` | (none) | string | Username:Password for HTTP Basic Authentication |
 | `-e` | `--referer` | (none) | URI | HTTP referer header |
+| `-b` | `--cookie` | (none) | HTTP cookie string or `@`file-path | Specifies cookie header (if `=` present) or file from which to read cookies from, read-only |
+| `-c` | `--cookie-jar` | (none) | file-path | Specifies file to which to write cookies to |
 
 # Examples
 

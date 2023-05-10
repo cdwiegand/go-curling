@@ -11,7 +11,9 @@ import (
 	"sort"
 	"strings"
 
+	cookieJar "github.com/juju/persistent-cookiejar"
 	flag "github.com/spf13/pflag"
+	"golang.org/x/net/publicsuffix"
 )
 
 type CurlContext struct {
@@ -30,6 +32,9 @@ type CurlContext struct {
 	showErrorEvenIfSilent      bool
 	referer                    string
 	errorOutput                string
+	cookies                    []string
+	cookieJar                  string
+	_jar                       cookieJar.Jar
 }
 
 func main() {
@@ -42,6 +47,8 @@ func main() {
 }
 func processResponse(ctx *CurlContext, resp *http.Response, err error) {
 	if resp != nil {
+		ctx._jar.Save() // is ignored if jar's filename is empty
+
 		if resp.StatusCode >= 400 {
 			// error
 			if !ctx.silentFail {
@@ -64,20 +71,24 @@ func processResponse(ctx *CurlContext, resp *http.Response, err error) {
 	}
 }
 func parseArgs(ctx *CurlContext) {
+	empty := []string{}
 	flag.BoolVarP(&ctx.version, "version", "v", false, "Return version and exit")
 	flag.StringVar(&ctx.errorOutput, "stderr", "stderr", "Log errors to this replacement for stderr")
-	flag.StringVarP(&ctx.method, "method", "X", "GET", "HTTP method to use")
+	flag.StringVarP(&ctx.method, "method", "X", "", "HTTP method to use (usually GET unless otherwise modified by other parameters)")
 	flag.StringVarP(&ctx.output, "output", "o", "stdout", "Where to output results")
 	flag.StringVarP(&ctx.headerOutput, "dump-header", "D", "/dev/null", "Where to output headers")
 	flag.StringVarP(&ctx.userAgent, "user-agent", "A", "go-curling/##DEV##", "User-agent to use")
 	flag.StringVarP(&ctx.userAuth, "user", "u", "", "User:password for HTTP authentication")
 	flag.StringVarP(&ctx.referer, "referer", "e", "", "Referer URL to use with HTTP request")
+	flag.StringVar(&ctx.theUrl, "url", "", "Requesting URL")
 	flag.BoolVarP(&ctx.silentFail, "fail", "f", false, "If fail do not emit contents just return fail exit code (-6)")
 	flag.BoolVarP(&ctx.ignoreBadCerts, "insecure", "k", false, "Ignore invalid SSL certificates")
 	flag.BoolVarP(&ctx.isSilent, "silent", "s", false, "Silence all program console output")
 	flag.BoolVarP(&ctx.showErrorEvenIfSilent, "show-error", "S", false, "Show error info even if silent mode on")
 	flag.BoolVarP(&ctx.headOnly, "head", "I", false, "Only return headers (ignoring body content)")
 	flag.BoolVarP(&ctx.includeHeadersInMainOutput, "include", "i", false, "Include headers (prepended to body content)")
+	flag.StringSliceVarP(&ctx.cookies, "cookie", "b", empty, "HTTP cookie, raw, can be repeated")
+	flag.StringVarP(&ctx.cookieJar, "cookie-jar", "c", "", "File for storing (and reading) cookies")
 	flag.Parse()
 
 	if ctx.version {
@@ -130,7 +141,17 @@ func buildClient(ctx *CurlContext) (client *http.Client) {
 	if ctx.ignoreBadCerts {
 		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
-	client = &http.Client{Transport: customTransport}
+
+	newjar, _ := cookieJar.New(&cookieJar.Options{
+		PublicSuffixList: publicsuffix.List,
+		Filename:         ctx.cookieJar,
+	})
+	ctx._jar = *newjar // save for later!
+
+	client = &http.Client{
+		Transport: customTransport,
+		Jar:       newjar,
+	}
 	return
 }
 func buildRequest(ctx *CurlContext) (request *http.Request) {
@@ -142,6 +163,11 @@ func buildRequest(ctx *CurlContext) (request *http.Request) {
 	}
 	if ctx.referer != "" {
 		request.Header.Set("Referer", ctx.referer)
+	}
+	if ctx.cookies != nil {
+		for _, cookie := range ctx.cookies {
+			request.Header.Add("Cookie", cookie)
+		}
 	}
 	if ctx.userAuth != "" {
 		auths := strings.SplitN(ctx.userAuth, ":", 2)
