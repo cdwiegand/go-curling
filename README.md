@@ -39,7 +39,7 @@ curl https://my.local.test:443 -k
 # Using in a Dockerfile
 ```
 COPY --from=cdwiegand/go-curling:latest /bin/curl /usr/bin/curl
-# OR COPY --from=ghcr.io/cdwiegand/go-curling:latest /bin/curl /usr/bin/curl
+# OR COPY --from=ghcr.io/cdwiegand/cdwiegand/go-curling:latest /bin/curl /usr/bin/curl
 HEALTHCHECK CMD curl -f http://localhost:80
 ```
 
