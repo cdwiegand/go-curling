@@ -22,6 +22,7 @@ import (
 
 type CurlContext struct {
 	version                    bool
+	verbose                    bool
 	method                     string
 	silentFail                 bool
 	output                     string
@@ -70,11 +71,10 @@ func main() {
 	request := buildRequest(ctx)
 	client := buildClient(ctx)
 	resp, err := client.Do(request)
-	processResponse(ctx, resp, err)
+	processResponse(ctx, resp, err, request)
 }
-func processResponse(ctx *CurlContext, resp *http.Response, err error) {
+func processResponse(ctx *CurlContext, resp *http.Response, err error, request *http.Request) {
 	if resp != nil {
-		os.Stdout.WriteString("saving to jar ")
 		err := ctx._jar.Save() // is ignored if jar's filename is empty
 		if err != nil {
 			logErrorF(ctx, "Failed to save cookies to jar %d", err.Error())
@@ -83,14 +83,14 @@ func processResponse(ctx *CurlContext, resp *http.Response, err error) {
 		if resp.StatusCode >= 400 {
 			// error
 			if !ctx.silentFail {
-				handleBodyResponse(ctx, resp, err)
+				handleBodyResponse(ctx, resp, err, request)
 			} else {
 				logErrorF(ctx, "Failed with error code %d", resp.StatusCode)
 			}
 			os.Exit(6) // arbitrary
 		} else {
 			// success
-			handleBodyResponse(ctx, resp, err)
+			handleBodyResponse(ctx, resp, err, request)
 		}
 	} else if err != nil {
 		if resp == nil {
@@ -103,11 +103,12 @@ func processResponse(ctx *CurlContext, resp *http.Response, err error) {
 }
 func parseArgs(ctx *CurlContext) {
 	empty := []string{}
-	flag.BoolVarP(&ctx.version, "version", "v", false, "Return version and exit")
+	flag.BoolVarP(&ctx.version, "version", "V", false, "Return version and exit")
+	flag.BoolVarP(&ctx.verbose, "verbose", "v", false, "Logs all headers, and body to output")
 	flag.StringVar(&ctx.errorOutput, "stderr", "stderr", "Log errors to this replacement for stderr")
 	flag.StringVarP(&ctx.method, "method", "X", "", "HTTP method to use (usually GET unless otherwise modified by other parameters)")
 	flag.StringVarP(&ctx.output, "output", "o", "stdout", "Where to output results")
-	flag.StringVarP(&ctx.headerOutput, "dump-header", "D", "/dev/null", "Where to output headers")
+	flag.StringVarP(&ctx.headerOutput, "dump-header", "D", "", "Where to output headers (not on by default)")
 	flag.StringVarP(&ctx.userAgent, "user-agent", "A", "go-curling/##DEV##", "User-agent to use")
 	flag.StringVarP(&ctx.userAuth, "user", "u", "", "User:password for HTTP authentication")
 	flag.StringVarP(&ctx.referer, "referer", "e", "", "Referer URL to use with HTTP request")
@@ -126,8 +127,14 @@ func parseArgs(ctx *CurlContext) {
 	flag.Parse()
 
 	if ctx.version {
-		os.Stdout.WriteString("go-curling build ##DEV##\n")
+		os.Stdout.WriteString("go-curling build ##DEV##")
 		os.Exit(0)
+	}
+
+	if ctx.verbose {
+		if ctx.headerOutput == "" {
+			ctx.headerOutput = ctx.output // emit headers
+		}
 	}
 
 	// do sanity checks and "fix" some parts left remaining from flag parsing
@@ -173,6 +180,10 @@ func parseArgs(ctx *CurlContext) {
 
 	// this should be LAST!
 	ctx.SetMethodIfNotSet("GET")
+
+	ctx.headerOutput = standardizeFileRef(ctx.headerOutput)
+	ctx.output = standardizeFileRef(ctx.output)
+	ctx.errorOutput = standardizeFileRef(ctx.errorOutput)
 }
 func createEmptyJar(ctx *CurlContext) (jar *cookieJar.Jar) {
 	jar, _ = cookieJar.New(&cookieJar.Options{
@@ -333,7 +344,7 @@ func buildRequest(ctx *CurlContext) (request *http.Request) {
 
 	return request
 }
-func handleBodyResponse(ctx *CurlContext, resp *http.Response, err error) {
+func handleBodyResponse(ctx *CurlContext, resp *http.Response, err error, request *http.Request) {
 	// emit body
 	var respBody []byte
 	if resp.Body != nil {
@@ -341,30 +352,75 @@ func handleBodyResponse(ctx *CurlContext, resp *http.Response, err error) {
 		respBody, _ = io.ReadAll(resp.Body)
 	}
 
-	headerString := strings.Join(formatResponseHeaders(resp), "\n")
-	headerBytesOut := []byte(headerString)
 	if ctx.headOnly {
-		writeToFileBytes(ctx.headerOutput, headerBytesOut)
+		writeToFileBytes(ctx.headerOutput, getHeaderBytes(ctx, resp, request, false))
 	} else if ctx.includeHeadersInMainOutput {
-		bytesOut := append(headerBytesOut, respBody...)
+		bytesOut := append(getHeaderBytes(ctx, resp, request, true), respBody...)
 		writeToFileBytes(ctx.output, bytesOut) // do all at once
 		if ctx.headerOutput != ctx.output {
-			writeToFileBytes(ctx.headerOutput, headerBytesOut) // also emit headers to separate location??
+			writeToFileBytes(ctx.headerOutput, getHeaderBytes(ctx, resp, request, false)) // also emit headers to separate location??
 		}
 	} else if ctx.headerOutput == ctx.output {
-		bytesOut := append(headerBytesOut, respBody...)
+		bytesOut := append(getHeaderBytes(ctx, resp, request, true), respBody...)
 		writeToFileBytes(ctx.output, bytesOut) // do all at once
 	} else {
-		writeToFileBytes(ctx.headerOutput, headerBytesOut)
+		writeToFileBytes(ctx.headerOutput, getHeaderBytes(ctx, resp, request, false))
 		writeToFileBytes(ctx.output, respBody)
 	}
 }
-func formatResponseHeaders(resp *http.Response) (res []string) {
-	proto := resp.Request.Proto
-	if resp.Request.Proto == "" {
+func getTlsVersionString(version uint16) (res string) {
+	switch version {
+	case tls.VersionSSL30:
+		res = "SSL 3.0"
+	case tls.VersionTLS10:
+		res = "TLS 1.0"
+	case tls.VersionTLS11:
+		res = "TLS 1.1"
+	case tls.VersionTLS12:
+		res = "TLS 1.2"
+	case tls.VersionTLS13:
+		res = "TLS 1.3"
+	case 0x0305:
+		res = "TLS 1.4?"
+	default:
+		res = fmt.Sprintf("Unknown (%v)", version)
+	}
+	return
+}
+func getTlsDetails(conn *tls.ConnectionState) (res []string) {
+	res = append(res, fmt.Sprintf("TLS Version: %v", getTlsVersionString(conn.Version)))
+	res = append(res, fmt.Sprintf("TLS Cipher Suite: %v", tls.CipherSuiteName(conn.CipherSuite)))
+	if conn.NegotiatedProtocol != "" {
+		res = append(res, fmt.Sprintf("TLS Negotiated Protocol: %v", conn.NegotiatedProtocol))
+	}
+	if conn.ServerName != "" {
+		res = append(res, fmt.Sprintf("TLS Server Name: %v", conn.ServerName))
+	}
+	return
+}
+func getHeaderBytes(ctx *CurlContext, resp *http.Response, req *http.Request, appendLine bool) (res []byte) {
+	headerString := ""
+	if ctx.verbose {
+		if resp.TLS != nil {
+			headerString = strings.Join(formatRequestHeaders(req), "\n") + "\n\n" + strings.Join(getTlsDetails(resp.TLS), "\n") + "\n\n" + strings.Join(formatResponseHeaders(resp, true), "\n")
+		} else {
+			headerString = strings.Join(formatRequestHeaders(req), "\n") + "\n\n" + strings.Join(formatResponseHeaders(resp, true), "\n")
+		}
+	} else {
+		headerString = strings.Join(formatResponseHeaders(resp, false), "\n")
+	}
+	if appendLine {
+		headerString = headerString + "\n\n"
+	}
+	res = []byte(headerString) // now contains verbose details, if necessary
+	return
+}
+func formatResponseHeaders(resp *http.Response, verboseFormat bool) (res []string) {
+	proto := resp.Proto
+	if resp.Proto == "" {
 		proto = "HTTP/?" // default, sometimes golang won't let you have the HTTP protocol version in the response
 	}
-	res = append(res, fmt.Sprintf("%s %d %v", proto, resp.StatusCode, resp.Request.URL))
+	res = append(res, fmt.Sprintf("%s %d", proto, resp.StatusCode))
 	dict := make(map[string]string)
 	keys := make([]string, 0, len(resp.Header))
 	for name, values := range resp.Header {
@@ -374,24 +430,53 @@ func formatResponseHeaders(resp *http.Response) (res []string) {
 		}
 	}
 	sort.Strings(keys)
+	prefix := ""
+	if verboseFormat {
+		prefix = "< "
+	}
 	for _, name := range keys { // I want them alphabetical
-		res = append(res, fmt.Sprintf("%s: %s", name, dict[name]))
+		res = append(res, fmt.Sprintf("%s%s: %s", prefix, name, dict[name]))
 	}
 
 	return
 }
+func formatRequestHeaders(req *http.Request) (res []string) {
+	res = append(res, fmt.Sprintf("%v %v", req.Method, req.URL))
+	dict := make(map[string]string)
+	keys := make([]string, 0, len(req.Header))
+	for name, values := range req.Header {
+		keys = append(keys, name)
+		for _, value := range values {
+			dict[name] = value
+		}
+	}
+	sort.Strings(keys)
+	for _, name := range keys { // I want them alphabetical
+		res = append(res, fmt.Sprintf("> %s: %s", name, dict[name]))
+	}
+
+	return
+}
+func standardizeFileRef(file string) string {
+	if file == "/dev/null" || file == "null" || file == "" {
+		return "/dev/null"
+	}
+	if file == "/dev/stderr" || file == "stderr" {
+		return "/dev/stderr"
+	}
+	if file == "/dev/stdout" || file == "stdout" || file == "-" {
+		return "/dev/stdout"
+	}
+	return file // no change
+}
 func writeToFileBytes(file string, body []byte) {
-	if file == "/dev/null" || file == "null" {
+	if file == "/dev/null" {
 		// do nothing
-	} else if file == "/dev/stderr" || file == "stderr" {
+	} else if file == "/dev/stderr" {
 		os.Stderr.Write(body)
-	} else if file == "-" || file == "/dev/stdout" || file == "stdout" {
-		// stdout
+	} else if file == "/dev/stdout" {
 		os.Stdout.Write(body)
-	} else if file == "" {
-		// do nothing, no file to push to..
 	} else {
-		// output to file
 		os.WriteFile(file, body, 0644)
 	}
 }
