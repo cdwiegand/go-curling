@@ -283,22 +283,28 @@ func HandleFormMultipart(ctx *CurlContext) {
 
 	ctx.SetBody(body, "multipart/form-data; boundary="+writer.Boundary(), "POST")
 }
-func HandleErrorAndExit(err error, ctx *CurlContext, exitCode int, entry string) {
+func PanicIfError(err error) {
 	if err != nil {
-		if entry == "" {
-			entry = "Error"
-		}
-		entry += ": "
-		entry += err.Error()
-		if exitCode == ERROR_CANNOT_WRITE_TO_STDOUT {
-			// don't recurse (it called us to report the failure to write errors to a normal file)
-			panic(err)
-		} else if (!ctx.isSilent && !ctx.silentFail) || !ctx.showErrorEvenIfSilent {
-			writeToFileBytes(ctx, ctx.errorOutput, []byte(entry+"\n"))
-		}
-		if exitCode != 0 {
-			os.Exit(exitCode)
-		}
+		panic(err)
+	}
+}
+func HandleErrorAndExit(err error, ctx *CurlContext, exitCode int, entry string) {
+	if err == nil {
+		return
+	}
+	if entry == "" {
+		entry = "Error"
+	}
+	entry += ": "
+	entry += err.Error()
+	if exitCode == ERROR_CANNOT_WRITE_TO_STDOUT {
+		// don't recurse (it called us to report the failure to write errors to a normal file)
+		PanicIfError(err)
+	} else if (!ctx.isSilent && !ctx.silentFail) || !ctx.showErrorEvenIfSilent {
+		writeToFileBytes(ctx, ctx.errorOutput, []byte(entry+"\n"))
+	}
+	if exitCode != 0 {
+		os.Exit(exitCode)
 	}
 }
 func BuildClient(ctx *CurlContext) (client *http.Client) {
