@@ -9,6 +9,7 @@ import (
 	"testing"
 )
 
+// helper functions
 func verifyGot(t *testing.T, name string, args string, wanted any, got any) {
 	if got != wanted {
 		t.Errorf("%v failed, got %q wanted %q for %q", name, got, wanted, args)
@@ -18,6 +19,17 @@ func verifyJson(json map[string]interface{}, arg string) {
 	if json[arg] == nil {
 		panic(fmt.Errorf("%v was not present in json response", arg))
 	}
+}
+
+func readJson(file string) (res map[string]interface{}) {
+	jsonFile, err := os.Open(file)
+	PanicIfError(err)
+	defer jsonFile.Close()
+
+	byteValue, err := io.ReadAll(jsonFile)
+	PanicIfError(err)
+	json.Unmarshal([]byte(byteValue), &res)
+	return
 }
 
 func helpRun(t *testing.T, contextBuilder func(outputFile string) (ctx *CurlContext), handler func(map[string]interface{})) {
@@ -45,6 +57,8 @@ func helpRun_Inner(ctx *CurlContext, handler func(map[string]interface{}), tempF
 	json := readJson(tempFile)
 	handler(json)
 }
+
+// Actual tests
 func Test_GetWithQuery(t *testing.T) {
 	helpRun(t, func(tempFile string) *CurlContext {
 		return &CurlContext{
@@ -229,17 +243,6 @@ func Test_CookieRoundTrip(t *testing.T) {
 		cookies := json["cookies"].(map[string]interface{})
 		verifyGot(t, "GetWithCookies", "", "testvalue", cookies["testcookie"])
 	})
-}
-
-func readJson(file string) (res map[string]interface{}) {
-	jsonFile, err := os.Open(file)
-	PanicIfError(err)
-	defer jsonFile.Close()
-
-	byteValue, err := io.ReadAll(jsonFile)
-	PanicIfError(err)
-	json.Unmarshal([]byte(byteValue), &res)
-	return
 }
 
 func Test_standardizeFileRef(t *testing.T) {

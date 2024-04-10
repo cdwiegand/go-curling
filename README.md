@@ -59,25 +59,5 @@ HEALTHCHECK CMD curl -s http://localhost:80
 # Command Line 
 All command line options *NO LONGER* needs to be specified before the URL - this was a limitation of golang's `flag` module, but I have upgraded to using `spf13/pflag` so this is no longer a problem.
 
-# Tests (manual for now)
-```
-go run ./main.go https://httpbin.org/get?test=one
-
-go run ./main.go -d test=one https://httpbin.org/post
-go run ./main.go -d test=@raw.data https://httpbin.org/post
-go run ./main.go -d @form.data https://httpbin.org/post
-
-go run ./main.go -F test=one https://httpbin.org/post
-go run ./main.go -F test=@raw.data https://httpbin.org/post
-go run ./main.go -F @form.data https://httpbin.org/post
-
-go run ./main.go -T raw.data https://httpbin.org/post
-
-go run ./main.go https://httpbin.org/delete -X DELETE
-
-go run ./main.go https://httpbin.org/cookies -b testcookie2=value2
-
-go run ./main.go https://httpbin.org/cookies/set/testcookie/testvalue -c cookiejar.tmp
-cat cookiejar.tmp
-go run ./main.go https://httpbin.org/cookies -c cookiejar.tmp
-```
+# Tests
+Tests are now present in the code - run `go test` to run them.
