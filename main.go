@@ -227,7 +227,6 @@ func HandleFormEncoded(ctx *CurlContext) {
 			}
 		} else {
 			splits := strings.SplitN(item, "=", 2)
-			os.Stdout.WriteString(item)
 			name := splits[0]
 			value := splits[1]
 
