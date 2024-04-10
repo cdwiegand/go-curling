@@ -69,8 +69,13 @@ const ERROR_CANNOT_WRITE_TO_STDOUT = -11
 func main() {
 	ctx := &CurlContext{}
 
-	parseArgs(ctx)
-	SetupContextForRun(ctx)
+	// I want to be able to test using my own args[], so can't use default flag.Parse()..
+	flags := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	SetupFlagArgs(ctx, flags)
+	flags.Parse(os.Args[1:])
+
+	extraArgs := strings.Join(flags.Args(), " ")
+	SetupContextForRun(ctx, extraArgs)
 
 	if ctx.version {
 		os.Stdout.WriteString("go-curling build ##DEV##")
@@ -106,40 +111,38 @@ func ProcessResponse(ctx *CurlContext, resp *http.Response, err error, request *
 		HandleBodyResponse(ctx, resp, request)
 	}
 }
-func parseArgs(ctx *CurlContext) {
+func SetupFlagArgs(ctx *CurlContext, flags *flag.FlagSet) {
 	empty := []string{}
-	flag.BoolVarP(&ctx.version, "version", "V", false, "Return version and exit")
-	flag.BoolVarP(&ctx.verbose, "verbose", "v", false, "Logs all headers, and body to output")
-	flag.StringVar(&ctx.errorOutput, "stderr", "stderr", "Log errors to this replacement for stderr")
-	flag.StringVarP(&ctx.method, "method", "X", "", "HTTP method to use (usually GET unless otherwise modified by other parameters)")
-	flag.StringVarP(&ctx.output, "output", "o", "stdout", "Where to output results")
-	flag.StringVarP(&ctx.headerOutput, "dump-header", "D", "", "Where to output headers (not on by default)")
-	flag.StringVarP(&ctx.userAgent, "user-agent", "A", "go-curling/##DEV##", "User-agent to use")
-	flag.StringVarP(&ctx.userAuth, "user", "u", "", "User:password for HTTP authentication")
-	flag.StringVarP(&ctx.referer, "referer", "e", "", "Referer URL to use with HTTP request")
-	flag.StringVar(&ctx.theUrl, "url", "", "Requesting URL")
-	flag.BoolVarP(&ctx.silentFail, "fail", "f", false, "If fail do not emit contents just return fail exit code (-6)")
-	flag.BoolVarP(&ctx.ignoreBadCerts, "insecure", "k", false, "Ignore invalid SSL certificates")
-	flag.BoolVarP(&ctx.isSilent, "silent", "s", false, "Silence all program console output")
-	flag.BoolVarP(&ctx.showErrorEvenIfSilent, "show-error", "S", false, "Show error info even if silent mode on")
-	flag.BoolVarP(&ctx.headOnly, "head", "I", false, "Only return headers (ignoring body content)")
-	flag.BoolVarP(&ctx.includeHeadersInMainOutput, "include", "i", false, "Include headers (prepended to body content)")
-	flag.StringSliceVarP(&ctx.cookies, "cookie", "b", empty, "HTTP cookie, raw HTTP cookie only (use -c for cookie jar files)")
-	flag.StringSliceVarP(&ctx.form_encoded, "data", "d", empty, "HTML form data, set mime type to 'application/x-www-form-urlencoded'")
-	flag.StringSliceVarP(&ctx.form_multipart, "form", "F", empty, "HTML form data, set mime type to 'multipart/form-data'")
-	flag.StringVarP(&ctx.cookieJar, "cookie-jar", "c", "", "File for storing (read and write) cookies")
-	flag.StringVarP(&ctx.uploadFile, "upload-file", "T", "", "Raw file to PUT (default) to the url given, not encoded")
-	flag.Parse()
+	flags.BoolVarP(&ctx.version, "version", "V", false, "Return version and exit")
+	flags.BoolVarP(&ctx.verbose, "verbose", "v", false, "Logs all headers, and body to output")
+	flags.StringVar(&ctx.errorOutput, "stderr", "stderr", "Log errors to this replacement for stderr")
+	flags.StringVarP(&ctx.method, "method", "X", "", "HTTP method to use (usually GET unless otherwise modified by other parameters)")
+	flags.StringVarP(&ctx.output, "output", "o", "stdout", "Where to output results")
+	flags.StringVarP(&ctx.headerOutput, "dump-header", "D", "", "Where to output headers (not on by default)")
+	flags.StringVarP(&ctx.userAgent, "user-agent", "A", "go-curling/##DEV##", "User-agent to use")
+	flags.StringVarP(&ctx.userAuth, "user", "u", "", "User:password for HTTP authentication")
+	flags.StringVarP(&ctx.referer, "referer", "e", "", "Referer URL to use with HTTP request")
+	flags.StringVar(&ctx.theUrl, "url", "", "Requesting URL")
+	flags.BoolVarP(&ctx.silentFail, "fail", "f", false, "If fail do not emit contents just return fail exit code (-6)")
+	flags.BoolVarP(&ctx.ignoreBadCerts, "insecure", "k", false, "Ignore invalid SSL certificates")
+	flags.BoolVarP(&ctx.isSilent, "silent", "s", false, "Silence all program console output")
+	flags.BoolVarP(&ctx.showErrorEvenIfSilent, "show-error", "S", false, "Show error info even if silent mode on")
+	flags.BoolVarP(&ctx.headOnly, "head", "I", false, "Only return headers (ignoring body content)")
+	flags.BoolVarP(&ctx.includeHeadersInMainOutput, "include", "i", false, "Include headers (prepended to body content)")
+	flags.StringSliceVarP(&ctx.cookies, "cookie", "b", empty, "HTTP cookie, raw HTTP cookie only (use -c for cookie jar files)")
+	flags.StringSliceVarP(&ctx.form_encoded, "data", "d", empty, "HTML form data, set mime type to 'application/x-www-form-urlencoded'")
+	flags.StringSliceVarP(&ctx.form_multipart, "form", "F", empty, "HTML form data, set mime type to 'multipart/form-data'")
+	flags.StringVarP(&ctx.cookieJar, "cookie-jar", "c", "", "File for storing (read and write) cookies")
+	flags.StringVarP(&ctx.uploadFile, "upload-file", "T", "", "Raw file to PUT (default) to the url given, not encoded")
 }
-func SetupContextForRun(ctx *CurlContext) {
+func SetupContextForRun(ctx *CurlContext, extraArgs string) {
 	if ctx.verbose && ctx.headerOutput == "" {
 		ctx.headerOutput = ctx.output // emit headers
 	}
 
 	// do sanity checks and "fix" some parts left remaining from flag parsing
-	tempUrl := strings.Join(flag.Args(), " ")
-	if ctx.theUrl == "" && tempUrl != "" {
-		ctx.theUrl = tempUrl
+	if ctx.theUrl == "" && extraArgs != "" {
+		ctx.theUrl = extraArgs
 	}
 	ctx.userAgent = strings.ReplaceAll(ctx.userAgent, "##DE"+"V##", "dev-branch") // split as I want to keep proper date versions unmunged
 
@@ -186,10 +189,6 @@ func SetupContextForRun(ctx *CurlContext) {
 
 	// this should be after all other changes to method!
 	ctx.SetMethodIfNotSet("GET")
-
-	ctx.headerOutput = standardizeFileRef(ctx.headerOutput)
-	ctx.output = standardizeFileRef(ctx.output)
-	ctx.errorOutput = standardizeFileRef(ctx.errorOutput)
 }
 func CreateEmptyJar(ctx *CurlContext) (jar *cookieJar.Jar) {
 	jar, err := cookieJar.New(&cookieJar.Options{
@@ -463,25 +462,13 @@ func FormatRequestHeaders(req *http.Request) (res []string) {
 
 	return
 }
-func standardizeFileRef(file string) string {
-	if file == "/dev/null" || file == "null" || file == "" {
-		return "/dev/null"
-	}
-	if file == "/dev/stderr" || file == "stderr" {
-		return "/dev/stderr"
-	}
-	if file == "/dev/stdout" || file == "stdout" || file == "-" {
-		return "/dev/stdout"
-	}
-	return file // no change
-}
 func writeToFileBytes(ctx *CurlContext, file string, body []byte) {
-	if file == "/dev/null" {
+	if file == "/dev/null" || file == "null" || file == "" {
 		// do nothing
-	} else if file == "/dev/stderr" {
+	} else if file == "/dev/stderr" || file == "stderr" {
 		_, err := os.Stderr.Write(body)
 		HandleErrorAndExit(err, ctx, ERROR_CANNOT_WRITE_TO_STDOUT, "Could not write to stderr")
-	} else if file == "/dev/stdout" {
+	} else if file == "/dev/stdout" || file == "stdout" || file == "-" {
 		_, err := os.Stdout.Write(body)
 		HandleErrorAndExit(err, ctx, ERROR_CANNOT_WRITE_TO_STDOUT, "Could not write to stdout")
 	} else {
