@@ -192,11 +192,12 @@ func SetupContextForRun(ctx *CurlContext) {
 	ctx.errorOutput = standardizeFileRef(ctx.errorOutput)
 }
 func CreateEmptyJar(ctx *CurlContext) (jar *cookieJar.Jar) {
-	jar, _ = cookieJar.New(&cookieJar.Options{
+	jar, err := cookieJar.New(&cookieJar.Options{
 		PublicSuffixList:      publicsuffix.List,
 		Filename:              ctx.cookieJar,
 		PersistSessionCookies: true,
 	})
+	HandleErrorAndExit(err, ctx, ERROR_CANNOT_READ_FILE, "Unable to create cookie jar")
 	return
 }
 
