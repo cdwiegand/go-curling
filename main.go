@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -58,47 +59,51 @@ func (ctx *CurlContext) SetMethodIfNotSet(httpMethod string) {
 	}
 }
 
+const ERROR_STATUS_CODE_FAILURE = -6
+const ERROR_NO_RESPONSE = -7
+const ERROR_INVALID_URL = -8
+const ERROR_CANNOT_READ_FILE = -9
+const ERROR_CANNOT_WRITE_FILE = -10
+const ERROR_CANNOT_WRITE_TO_STDOUT = -11
+
 func main() {
 	ctx := &CurlContext{}
 
 	parseArgs(ctx)
+	SetupContextForRun(ctx)
 
-	if ctx.theUrl == "" {
-		logError(ctx, "URL was not found in command line.")
-		os.Exit(8)
+	if ctx.version {
+		os.Stdout.WriteString("go-curling build ##DEV##")
+		os.Exit(0)
+		return
 	}
 
-	request := buildRequest(ctx)
-	client := buildClient(ctx)
-	resp, err := client.Do(request)
-	processResponse(ctx, resp, err, request)
-}
-func processResponse(ctx *CurlContext, resp *http.Response, err error, request *http.Request) {
-	if resp != nil {
-		err := ctx._jar.Save() // is ignored if jar's filename is empty
-		if err != nil {
-			logErrorF(ctx, "Failed to save cookies to jar %d", err.Error())
-		}
+	// must be after version check
+	if ctx.theUrl == "" {
+		err := errors.New("URL was not found on the command line")
+		HandleErrorAndExit(err, ctx, ERROR_STATUS_CODE_FAILURE, "Parse URL")
+	}
 
-		if resp.StatusCode >= 400 {
-			// error
-			if !ctx.silentFail {
-				handleBodyResponse(ctx, resp, err, request)
-			} else {
-				logErrorF(ctx, "Failed with error code %d", resp.StatusCode)
-			}
-			os.Exit(6) // arbitrary
-		} else {
-			// success
-			handleBodyResponse(ctx, resp, err, request)
+	request := BuildRequest(ctx)
+	client := BuildClient(ctx)
+	resp, err := client.Do(request)
+	ProcessResponse(ctx, resp, err, request)
+}
+func ProcessResponse(ctx *CurlContext, resp *http.Response, err error, request *http.Request) {
+	HandleErrorAndExit(err, ctx, ERROR_NO_RESPONSE, fmt.Sprintf("Was unable to query URL %v", ctx.theUrl))
+
+	err2 := ctx._jar.Save() // is ignored if jar's filename is empty
+	HandleErrorAndExit(err2, ctx, ERROR_CANNOT_WRITE_FILE, "Failed to save cookies to jar")
+
+	if resp.StatusCode >= 400 {
+		// error
+		if !ctx.silentFail {
+			HandleBodyResponse(ctx, resp, request)
 		}
-	} else if err != nil {
-		if resp == nil {
-			logErrorF(ctx, "Was unable to query URL %v", ctx.theUrl)
-		} else {
-			logErrorF(ctx, "Failed with error code %d", resp.StatusCode)
-		}
-		os.Exit(7) // arbitrary
+		os.Exit(6) // arbitrary
+	} else {
+		// success
+		HandleBodyResponse(ctx, resp, request)
 	}
 }
 func parseArgs(ctx *CurlContext) {
@@ -125,16 +130,10 @@ func parseArgs(ctx *CurlContext) {
 	flag.StringVarP(&ctx.cookieJar, "cookie-jar", "c", "", "File for storing (read and write) cookies")
 	flag.StringVarP(&ctx.uploadFile, "upload-file", "T", "", "Raw file to PUT (default) to the url given, not encoded")
 	flag.Parse()
-
-	if ctx.version {
-		os.Stdout.WriteString("go-curling build ##DEV##")
-		os.Exit(0)
-	}
-
-	if ctx.verbose {
-		if ctx.headerOutput == "" {
-			ctx.headerOutput = ctx.output // emit headers
-		}
+}
+func SetupContextForRun(ctx *CurlContext) {
+	if ctx.verbose && ctx.headerOutput == "" {
+		ctx.headerOutput = ctx.output // emit headers
 	}
 
 	// do sanity checks and "fix" some parts left remaining from flag parsing
@@ -161,9 +160,7 @@ func parseArgs(ctx *CurlContext) {
 	if ctx.theUrl != "" {
 		u, err := url.Parse(ctx.theUrl)
 		changed := false
-		if err != nil {
-			panic(err)
-		}
+		HandleErrorAndExit(err, ctx, ERROR_INVALID_URL, fmt.Sprintf("Could not parse url: %q", ctx.theUrl))
 		if u.Scheme == "" {
 			u.Scheme = "http"
 			changed = true
@@ -177,18 +174,24 @@ func parseArgs(ctx *CurlContext) {
 		}
 	}
 
-	ctx._jar = createEmptyJar(ctx)
+	ctx._jar = CreateEmptyJar(ctx)
 
-	handleFormsAndFiles(ctx)
+	if ctx.uploadFile != "" {
+		HandleUploadFile(ctx)
+	} else if len(ctx.form_encoded) > 0 {
+		HandleFormEncoded(ctx)
+	} else if len(ctx.form_multipart) > 0 {
+		HandleFormMultipart(ctx)
+	}
 
-	// this should be LAST!
+	// this should be after all other changes to method!
 	ctx.SetMethodIfNotSet("GET")
 
 	ctx.headerOutput = standardizeFileRef(ctx.headerOutput)
 	ctx.output = standardizeFileRef(ctx.output)
 	ctx.errorOutput = standardizeFileRef(ctx.errorOutput)
 }
-func createEmptyJar(ctx *CurlContext) (jar *cookieJar.Jar) {
+func CreateEmptyJar(ctx *CurlContext) (jar *cookieJar.Jar) {
 	jar, _ = cookieJar.New(&cookieJar.Options{
 		PublicSuffixList:      publicsuffix.List,
 		Filename:              ctx.cookieJar,
@@ -196,115 +199,109 @@ func createEmptyJar(ctx *CurlContext) (jar *cookieJar.Jar) {
 	})
 	return
 }
-func handleFormsAndFiles(ctx *CurlContext) {
-	if ctx.uploadFile != "" {
-		f, err := os.ReadFile(ctx.uploadFile)
-		if err != nil {
-			logErrorF(ctx, "Failed to read file %s", ctx.uploadFile)
-			os.Exit(9)
-		}
-		mime := mime.TypeByExtension(path.Ext(ctx.uploadFile))
-		if mime == "" {
-			mime = "application/octet-stream"
-		}
-		body := &bytes.Buffer{}
-		body.Write(f)
-		ctx.SetBody(body, mime, "POST")
 
-	} else if len(ctx.form_encoded) > 0 {
-		formBody := url.Values{}
-		for _, item := range ctx.form_encoded {
-			if strings.HasPrefix(item, "@") {
-				filename := strings.TrimPrefix(item, "@")
-				fullForm, err := os.ReadFile(filename)
-				if err != nil {
-					logErrorF(ctx, "Failed to read file %s", filename)
-					os.Exit(9)
-				}
-				formLines := strings.Split(string(fullForm), "\n")
-				for _, line := range formLines {
-					splits := strings.SplitN(line, "=", 2)
-					name := splits[0]
-					value := splits[1]
-					formBody.Set(name, value)
-				}
-			} else {
-				splits := strings.SplitN(item, "=", 2)
-				os.Stdout.WriteString(item)
+func HandleUploadFile(ctx *CurlContext) {
+	f, err := os.ReadFile(ctx.uploadFile)
+	HandleErrorAndExit(err, ctx, ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", ctx.uploadFile))
+	mime := mime.TypeByExtension(path.Ext(ctx.uploadFile))
+	if mime == "" {
+		mime = "application/octet-stream"
+	}
+	body := &bytes.Buffer{}
+	body.Write(f)
+	ctx.SetBody(body, mime, "POST")
+}
+func HandleFormEncoded(ctx *CurlContext) {
+	formBody := url.Values{}
+	for _, item := range ctx.form_encoded {
+		if strings.HasPrefix(item, "@") {
+			filename := strings.TrimPrefix(item, "@")
+			fullForm, err := os.ReadFile(filename)
+			HandleErrorAndExit(err, ctx, ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename))
+			formLines := strings.Split(string(fullForm), "\n")
+			for _, line := range formLines {
+				splits := strings.SplitN(line, "=", 2)
 				name := splits[0]
 				value := splits[1]
+				formBody.Set(name, value)
+			}
+		} else {
+			splits := strings.SplitN(item, "=", 2)
+			os.Stdout.WriteString(item)
+			name := splits[0]
+			value := splits[1]
 
-				if strings.HasPrefix(value, "@") {
-					filename := strings.TrimPrefix(value, "@")
-					valueRaw, err := os.ReadFile(filename)
-					if err != nil {
-						logErrorF(ctx, "Failed to read file %s", filename)
-						os.Exit(9)
-					}
-					//formBody.Set(name, base64.StdEncoding.EncodeToString(valueRaw))
-					formBody.Set(name, string(valueRaw))
-				} else {
-					formBody.Set(name, value)
-				}
+			if strings.HasPrefix(value, "@") {
+				filename := strings.TrimPrefix(value, "@")
+				valueRaw, err := os.ReadFile(filename)
+				HandleErrorAndExit(err, ctx, ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename))
+				//formBody.Set(name, base64.StdEncoding.EncodeToString(valueRaw))
+				formBody.Set(name, string(valueRaw))
+			} else {
+				formBody.Set(name, value)
 			}
 		}
-		body := strings.NewReader(formBody.Encode())
-		ctx.SetBody(body, "application/x-www-form-urlencoded", "POST")
+	}
+	body := strings.NewReader(formBody.Encode())
+	ctx.SetBody(body, "application/x-www-form-urlencoded", "POST")
+}
+func HandleFormMultipart(ctx *CurlContext) {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
 
-	} else if len(ctx.form_multipart) > 0 {
-		body := &bytes.Buffer{}
-		writer := multipart.NewWriter(body)
-
-		for _, item := range ctx.form_multipart {
-			if strings.HasPrefix(item, "@") {
-				filename := strings.TrimPrefix(item, "@")
-				fullForm, err := os.ReadFile(filename)
-				if err != nil {
-					logErrorF(ctx, "Failed to read file %s", filename)
-					os.Exit(9)
-				}
-				formLines := strings.Split(string(fullForm), "\n")
-				for _, line := range formLines {
-					splits := strings.SplitN(line, "=", 2)
-					name := splits[0]
-					value := splits[1]
-					part, _ := writer.CreateFormField(name)
-					part.Write([]byte(value))
-				}
-			} else {
-				splits := strings.SplitN(item, "=", 2)
+	for _, item := range ctx.form_multipart {
+		if strings.HasPrefix(item, "@") {
+			filename := strings.TrimPrefix(item, "@")
+			fullForm, err := os.ReadFile(filename)
+			HandleErrorAndExit(err, ctx, ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename))
+			formLines := strings.Split(string(fullForm), "\n")
+			for _, line := range formLines {
+				splits := strings.SplitN(line, "=", 2)
 				name := splits[0]
 				value := splits[1]
+				part, _ := writer.CreateFormField(name)
+				part.Write([]byte(value))
+			}
+		} else {
+			splits := strings.SplitN(item, "=", 2)
+			name := splits[0]
+			value := splits[1]
 
-				if strings.HasPrefix(value, "@") {
-					filename := strings.TrimPrefix(value, "@")
-					valueRaw, err := os.ReadFile(filename)
-					if err != nil {
-						logErrorF(ctx, "Failed to read file %s", filename)
-						os.Exit(9)
-					}
-					part, _ := writer.CreateFormFile(name, path.Base(filename))
-					part.Write(valueRaw)
-				} else {
-					part, _ := writer.CreateFormField(name)
-					part.Write([]byte(value))
-				}
+			if strings.HasPrefix(value, "@") {
+				filename := strings.TrimPrefix(value, "@")
+				valueRaw, err := os.ReadFile(filename)
+				HandleErrorAndExit(err, ctx, ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename))
+				part, _ := writer.CreateFormFile(name, path.Base(filename))
+				part.Write(valueRaw)
+			} else {
+				part, _ := writer.CreateFormField(name)
+				part.Write([]byte(value))
 			}
 		}
-		writer.Close()
+	}
+	writer.Close()
 
-		ctx.SetBody(body, "multipart/form-data; boundary="+writer.Boundary(), "POST")
+	ctx.SetBody(body, "multipart/form-data; boundary="+writer.Boundary(), "POST")
+}
+func HandleErrorAndExit(err error, ctx *CurlContext, exitCode int, entry string) {
+	if err != nil {
+		if entry == "" {
+			entry = "Error"
+		}
+		entry += ": "
+		entry += err.Error()
+		if exitCode == ERROR_CANNOT_WRITE_TO_STDOUT {
+			// don't recurse (it called us to report the failure to write errors to a normal file)
+			panic(err)
+		} else if (!ctx.isSilent && !ctx.silentFail) || !ctx.showErrorEvenIfSilent {
+			writeToFileBytes(ctx, ctx.errorOutput, []byte(entry+"\n"))
+		}
+		if exitCode != 0 {
+			os.Exit(exitCode)
+		}
 	}
 }
-func logErrorF(ctx *CurlContext, entry string, value interface{}) {
-	logError(ctx, fmt.Sprintf(entry, value))
-}
-func logError(ctx *CurlContext, entry string) {
-	if (!ctx.isSilent && !ctx.silentFail) || !ctx.showErrorEvenIfSilent {
-		writeToFileBytes(ctx.errorOutput, []byte(entry+"\n"))
-	}
-}
-func buildClient(ctx *CurlContext) (client *http.Client) {
+func BuildClient(ctx *CurlContext) (client *http.Client) {
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
 	if ctx.ignoreBadCerts {
 		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
@@ -316,7 +313,7 @@ func buildClient(ctx *CurlContext) (client *http.Client) {
 	}
 	return
 }
-func buildRequest(ctx *CurlContext) (request *http.Request) {
+func BuildRequest(ctx *CurlContext) (request *http.Request) {
 	request, _ = http.NewRequest(strings.ToUpper(ctx.method), ctx.theUrl, ctx._body)
 	if ctx._body_contentType != "" {
 		request.Header.Add("Content-Type", ctx._body_contentType)
@@ -347,7 +344,7 @@ func buildRequest(ctx *CurlContext) (request *http.Request) {
 
 	return request
 }
-func handleBodyResponse(ctx *CurlContext, resp *http.Response, err error, request *http.Request) {
+func HandleBodyResponse(ctx *CurlContext, resp *http.Response, request *http.Request) {
 	// emit body
 	var respBody []byte
 	if resp.Body != nil {
@@ -356,22 +353,22 @@ func handleBodyResponse(ctx *CurlContext, resp *http.Response, err error, reques
 	}
 
 	if ctx.headOnly {
-		writeToFileBytes(ctx.headerOutput, getHeaderBytes(ctx, resp, request, false))
+		writeToFileBytes(ctx, ctx.headerOutput, GetHeaderBytes(ctx, resp, request, false))
 	} else if ctx.includeHeadersInMainOutput {
-		bytesOut := append(getHeaderBytes(ctx, resp, request, true), respBody...)
-		writeToFileBytes(ctx.output, bytesOut) // do all at once
+		bytesOut := append(GetHeaderBytes(ctx, resp, request, true), respBody...)
+		writeToFileBytes(ctx, ctx.output, bytesOut) // do all at once
 		if ctx.headerOutput != ctx.output {
-			writeToFileBytes(ctx.headerOutput, getHeaderBytes(ctx, resp, request, false)) // also emit headers to separate location??
+			writeToFileBytes(ctx, ctx.headerOutput, GetHeaderBytes(ctx, resp, request, false)) // also emit headers to separate location??
 		}
 	} else if ctx.headerOutput == ctx.output {
-		bytesOut := append(getHeaderBytes(ctx, resp, request, true), respBody...)
-		writeToFileBytes(ctx.output, bytesOut) // do all at once
+		bytesOut := append(GetHeaderBytes(ctx, resp, request, true), respBody...)
+		writeToFileBytes(ctx, ctx.output, bytesOut) // do all at once
 	} else {
-		writeToFileBytes(ctx.headerOutput, getHeaderBytes(ctx, resp, request, false))
-		writeToFileBytes(ctx.output, respBody)
+		writeToFileBytes(ctx, ctx.headerOutput, GetHeaderBytes(ctx, resp, request, false))
+		writeToFileBytes(ctx, ctx.output, respBody)
 	}
 }
-func getTlsVersionString(version uint16) (res string) {
+func GetTlsVersionString(version uint16) (res string) {
 	switch version {
 	case tls.VersionSSL30:
 		res = "SSL 3.0"
@@ -390,8 +387,8 @@ func getTlsVersionString(version uint16) (res string) {
 	}
 	return
 }
-func getTlsDetails(conn *tls.ConnectionState) (res []string) {
-	res = append(res, fmt.Sprintf("TLS Version: %v", getTlsVersionString(conn.Version)))
+func GetTlsDetails(conn *tls.ConnectionState) (res []string) {
+	res = append(res, fmt.Sprintf("TLS Version: %v", GetTlsVersionString(conn.Version)))
 	res = append(res, fmt.Sprintf("TLS Cipher Suite: %v", tls.CipherSuiteName(conn.CipherSuite)))
 	if conn.NegotiatedProtocol != "" {
 		res = append(res, fmt.Sprintf("TLS Negotiated Protocol: %v", conn.NegotiatedProtocol))
@@ -401,16 +398,16 @@ func getTlsDetails(conn *tls.ConnectionState) (res []string) {
 	}
 	return
 }
-func getHeaderBytes(ctx *CurlContext, resp *http.Response, req *http.Request, appendLine bool) (res []byte) {
+func GetHeaderBytes(ctx *CurlContext, resp *http.Response, req *http.Request, appendLine bool) (res []byte) {
 	headerString := ""
 	if ctx.verbose {
 		if resp.TLS != nil {
-			headerString = strings.Join(formatRequestHeaders(req), "\n") + "\n\n" + strings.Join(getTlsDetails(resp.TLS), "\n") + "\n\n" + strings.Join(formatResponseHeaders(resp, true), "\n")
+			headerString = strings.Join(FormatRequestHeaders(req), "\n") + "\n\n" + strings.Join(GetTlsDetails(resp.TLS), "\n") + "\n\n" + strings.Join(FormatResponseHeaders(resp, true), "\n")
 		} else {
-			headerString = strings.Join(formatRequestHeaders(req), "\n") + "\n\n" + strings.Join(formatResponseHeaders(resp, true), "\n")
+			headerString = strings.Join(FormatRequestHeaders(req), "\n") + "\n\n" + strings.Join(FormatResponseHeaders(resp, true), "\n")
 		}
 	} else {
-		headerString = strings.Join(formatResponseHeaders(resp, false), "\n")
+		headerString = strings.Join(FormatResponseHeaders(resp, false), "\n")
 	}
 	if appendLine {
 		headerString = headerString + "\n\n"
@@ -418,7 +415,7 @@ func getHeaderBytes(ctx *CurlContext, resp *http.Response, req *http.Request, ap
 	res = []byte(headerString) // now contains verbose details, if necessary
 	return
 }
-func formatResponseHeaders(resp *http.Response, verboseFormat bool) (res []string) {
+func FormatResponseHeaders(resp *http.Response, verboseFormat bool) (res []string) {
 	proto := resp.Proto
 	if resp.Proto == "" {
 		proto = "HTTP/?" // default, sometimes golang won't let you have the HTTP protocol version in the response
@@ -443,7 +440,7 @@ func formatResponseHeaders(resp *http.Response, verboseFormat bool) (res []strin
 
 	return
 }
-func formatRequestHeaders(req *http.Request) (res []string) {
+func FormatRequestHeaders(req *http.Request) (res []string) {
 	res = append(res, fmt.Sprintf("%v %v", req.Method, req.URL))
 	dict := make(map[string]string)
 	keys := make([]string, 0, len(req.Header))
@@ -472,14 +469,18 @@ func standardizeFileRef(file string) string {
 	}
 	return file // no change
 }
-func writeToFileBytes(file string, body []byte) {
+func writeToFileBytes(ctx *CurlContext, file string, body []byte) {
 	if file == "/dev/null" {
 		// do nothing
 	} else if file == "/dev/stderr" {
-		os.Stderr.Write(body)
+		_, err := os.Stderr.Write(body)
+		HandleErrorAndExit(err, ctx, ERROR_CANNOT_WRITE_TO_STDOUT, "Could not write to stderr")
 	} else if file == "/dev/stdout" {
-		os.Stdout.Write(body)
+		_, err := os.Stdout.Write(body)
+		HandleErrorAndExit(err, ctx, ERROR_CANNOT_WRITE_TO_STDOUT, "Could not write to stdout")
 	} else {
-		os.WriteFile(file, body, 0644)
+		err := os.WriteFile(file, body, 0644)
+		HandleErrorAndExit(err, ctx, ERROR_CANNOT_WRITE_FILE, fmt.Sprintf("Could not write to file %q", file))
+		// ^^ could call us back, but with stderr as the output, so it's not recursive
 	}
 }

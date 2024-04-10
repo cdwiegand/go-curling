@@ -51,6 +51,10 @@ HEALTHCHECK CMD curl -s http://localhost:80
 - 7: No response, but an error was thrown
 - 8: Invalid/missing URL
 - 9: Unable to read upload file
+- 10: Unable to write output file (cookies or output)
+- 11: Unable to write to stdout/stderr
+- 249: No such host or invalid scheme
+- 250: Invalid/missing url
 
 # Command Line 
 All command line options *NO LONGER* needs to be specified before the URL - this was a limitation of golang's `flag` module, but I have upgraded to using `spf13/pflag` so this is no longer a problem.
