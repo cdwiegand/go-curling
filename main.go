@@ -147,9 +147,12 @@ func parseArgs(ctx *CurlContext) {
 	if ctx.silentFail || ctx.isSilent {
 		ctx.isSilent = true   // implied
 		ctx.silentFail = true // both are the same thing right now, we only emit errors (or content)
+		if ctx.output == "stdout" {
+			ctx.output = "null"
+		}
 	}
 	if ctx.headOnly {
-		if ctx.headerOutput == "/dev/null" {
+		if ctx.headerOutput == "" {
 			ctx.headerOutput = "-"
 		}
 		ctx.SetMethodIfNotSet("HEAD")

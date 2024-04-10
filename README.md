@@ -40,7 +40,7 @@ curl https://my.local.test:443 -k
 ```
 COPY --from=cdwiegand/go-curling:latest /bin/curl /usr/bin/curl
 # OR COPY --from=ghcr.io/cdwiegand/cdwiegand/go-curling:latest /bin/curl /usr/bin/curl
-HEALTHCHECK CMD curl -f http://localhost:80
+HEALTHCHECK CMD curl -s http://localhost:80
 ```
 
 # Needs
