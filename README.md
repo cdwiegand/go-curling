@@ -4,13 +4,20 @@ This program was designed to replace the curl that is no longer shipped with Mic
 # Differences between original curl and go-curling
 Not all functionality is supported, but one difference that makes this not 100% drop-in would be that the `--cookie-jar`/`-c` is both read and write - the `--cookie` / `-b` command only specifies a raw HTTP cookie on the command line - it is not usable as a file to read a prior cookie jar, due to the custom JSON format for storing cookies. So normally if you want to use cookies to login a session, just use `--cookie-jar`/`-c` in each all - no need to specify `--cookie`/`-b` unless you want to specify a "starting" cookie value.
 
+- Globbing is NOT supported
+- Environment variable interpolation ("Variables" in the curl man page) is not supported
+- Command line arguments not listed below are also not supported
+- go-curling does not implement global vs scoped arguments - `-:` / `--next` is not supported
+
+Note that one thing that is now supported is that if you specify multiple URLs, you can specify multiple `-o` or `-D` values and go-curling will honor that, but if you specify more URLs than you have specified outputs, the extra URLs will be processed with the default value for the given flag (content output to stdout).
+
 # Arguments
 | short | long form | default | type | description |
 | -- | -- | -- | -- | -- |
 | `-V` | `--version` | (none) | (none) | Return version and exit |
 | `-X` | `--method` | `GET` | string | HTTP method to use (generally `GET` unless using `-I` or similar parameters) |
-| `-o` | `--output` | `-` (/dev/stdout) | `-` or file-path | Where to output results |
-| `-D` | `--dump-header` | `/dev/null` | `-` or file-path | Where to output headers separately |
+| `-o` | `--output` | `-` (/dev/stdout) | `-` or file-path(s) | Where to output results |
+| `-D` | `--dump-header` | `/dev/null` | `-` or file-path(s) | Where to output headers separately |
 |  | `--stderr` | `/dev/stderr` | `-` or file-path | Log errors to this replacement for stderr |
 | `-A` | `--user-agent` | `go-curling/1` | string | User-agent to use |
 | `-k` | `--insecure` | `false` | boolean | Ignore invalid SSL certificates |
@@ -25,7 +32,7 @@ Not all functionality is supported, but one difference that makes this not 100% 
 | `-c` | `--cookie-jar` | (none) | file-path | Specifies file to which to write cookies to |
 | `-d` | `--data` | (none) | name=value OR name=`@`file-path | Send next parameter as POST / `application/x-www-form-urlencoded` |
 | `-F` | `--form` | (none) | name=value OR name=`@`file-path |Send next parameter as POST / `multipart/form-data` |
-| `-T` | `--upload-file` | (none) | file-path | File to upload (PUT method by default) |
+| `-T` | `--upload-file` | (none) | file-path | File(s) to upload to given URL(s) (PUT method by default) |
 
 # Examples
 

@@ -26,10 +26,10 @@ type CurlContext struct {
 	verbose                    bool
 	method                     string
 	silentFail                 bool
-	output                     string
-	headerOutput               string
+	output                     []string
+	headerOutput               []string
 	userAgent                  string
-	theUrl                     string
+	urls                       []string
 	ignoreBadCerts             bool
 	userAuth                   string
 	isSilent                   bool
@@ -41,16 +41,16 @@ type CurlContext struct {
 	cookies                    []string
 	cookieJar                  string
 	_jar                       *cookieJar.Jar
-	uploadFile                 string
+	uploadFile                 []string
 	form_encoded               []string
 	form_multipart             []string
-	_body_contentType          string
-	_body                      io.Reader
+	_bodies                    []io.Reader
+	_bodies_contentType        []string
 }
 
-func (ctx *CurlContext) SetBody(body io.Reader, mimeType string, httpMethod string) {
-	ctx._body = body
-	ctx._body_contentType = mimeType
+func (ctx *CurlContext) AddBody(body io.Reader, mimeType string, httpMethod string) {
+	ctx._bodies = append(ctx._bodies, body)
+	ctx._bodies_contentType = append(ctx._bodies_contentType, mimeType)
 	ctx.SetMethodIfNotSet(httpMethod)
 }
 func (ctx *CurlContext) SetMethodIfNotSet(httpMethod string) {
@@ -66,6 +66,8 @@ const ERROR_CANNOT_READ_FILE = -9
 const ERROR_CANNOT_WRITE_FILE = -10
 const ERROR_CANNOT_WRITE_TO_STDOUT = -11
 
+const DEFAULT_OUTPUT = "stdout"
+
 func main() {
 	ctx := &CurlContext{}
 
@@ -74,7 +76,7 @@ func main() {
 	SetupFlagArgs(ctx, flags)
 	flags.Parse(os.Args[1:])
 
-	extraArgs := strings.Join(flags.Args(), " ")
+	extraArgs := flags.Args() // remaining non-parsed args
 	SetupContextForRun(ctx, extraArgs)
 
 	if ctx.version {
@@ -84,18 +86,21 @@ func main() {
 	}
 
 	// must be after version check
-	if ctx.theUrl == "" {
+	if len(ctx.urls) == 0 {
 		err := errors.New("URL was not found on the command line")
 		HandleErrorAndExit(err, ctx, ERROR_STATUS_CODE_FAILURE, "Parse URL")
 	}
 
-	request := BuildRequest(ctx)
 	client := BuildClient(ctx)
-	resp, err := client.Do(request)
-	ProcessResponse(ctx, resp, err, request)
+
+	for index := range ctx.urls {
+		request := BuildRequest(ctx, index)
+		resp, err := client.Do(request)
+		ProcessResponse(ctx, index, resp, err, request)
+	}
 }
-func ProcessResponse(ctx *CurlContext, resp *http.Response, err error, request *http.Request) {
-	HandleErrorAndExit(err, ctx, ERROR_NO_RESPONSE, fmt.Sprintf("Was unable to query URL %v", ctx.theUrl))
+func ProcessResponse(ctx *CurlContext, index int, resp *http.Response, err error, request *http.Request) {
+	HandleErrorAndExit(err, ctx, ERROR_NO_RESPONSE, fmt.Sprintf("Was unable to query URL %v", ctx.urls))
 
 	err2 := ctx._jar.Save() // is ignored if jar's filename is empty
 	HandleErrorAndExit(err2, ctx, ERROR_CANNOT_WRITE_FILE, "Failed to save cookies to jar")
@@ -103,12 +108,12 @@ func ProcessResponse(ctx *CurlContext, resp *http.Response, err error, request *
 	if resp.StatusCode >= 400 {
 		// error
 		if !ctx.silentFail {
-			HandleBodyResponse(ctx, resp, request)
+			HandleBodyResponse(ctx, index, resp, request)
 		}
 		os.Exit(6) // arbitrary
 	} else {
 		// success
-		HandleBodyResponse(ctx, resp, request)
+		HandleBodyResponse(ctx, index, resp, request)
 	}
 }
 func SetupFlagArgs(ctx *CurlContext, flags *flag.FlagSet) {
@@ -117,12 +122,12 @@ func SetupFlagArgs(ctx *CurlContext, flags *flag.FlagSet) {
 	flags.BoolVarP(&ctx.verbose, "verbose", "v", false, "Logs all headers, and body to output")
 	flags.StringVar(&ctx.errorOutput, "stderr", "stderr", "Log errors to this replacement for stderr")
 	flags.StringVarP(&ctx.method, "method", "X", "", "HTTP method to use (usually GET unless otherwise modified by other parameters)")
-	flags.StringVarP(&ctx.output, "output", "o", "stdout", "Where to output results")
-	flags.StringVarP(&ctx.headerOutput, "dump-header", "D", "", "Where to output headers (not on by default)")
+	flags.StringArrayVarP(&ctx.output, "output", "o", []string{DEFAULT_OUTPUT}, "Where to output results")
+	flags.StringArrayVarP(&ctx.headerOutput, "dump-header", "D", []string{}, "Where to output headers (not on by default)")
 	flags.StringVarP(&ctx.userAgent, "user-agent", "A", "go-curling/##DEV##", "User-agent to use")
 	flags.StringVarP(&ctx.userAuth, "user", "u", "", "User:password for HTTP authentication")
 	flags.StringVarP(&ctx.referer, "referer", "e", "", "Referer URL to use with HTTP request")
-	flags.StringVar(&ctx.theUrl, "url", "", "Requesting URL")
+	flags.StringArrayVar(&ctx.urls, "url", []string{}, "Requesting URL")
 	flags.BoolVarP(&ctx.silentFail, "fail", "f", false, "If fail do not emit contents just return fail exit code (-6)")
 	flags.BoolVarP(&ctx.ignoreBadCerts, "insecure", "k", false, "Ignore invalid SSL certificates")
 	flags.BoolVarP(&ctx.isSilent, "silent", "s", false, "Silence all program console output")
@@ -133,53 +138,59 @@ func SetupFlagArgs(ctx *CurlContext, flags *flag.FlagSet) {
 	flags.StringSliceVarP(&ctx.form_encoded, "data", "d", empty, "HTML form data, set mime type to 'application/x-www-form-urlencoded'")
 	flags.StringSliceVarP(&ctx.form_multipart, "form", "F", empty, "HTML form data, set mime type to 'multipart/form-data'")
 	flags.StringVarP(&ctx.cookieJar, "cookie-jar", "c", "", "File for storing (read and write) cookies")
-	flags.StringVarP(&ctx.uploadFile, "upload-file", "T", "", "Raw file to PUT (default) to the url given, not encoded")
+	flags.StringArrayVarP(&ctx.uploadFile, "upload-file", "T", []string{}, "Raw file(s) to PUT (default) to the url(s) given, not encoded")
 }
-func SetupContextForRun(ctx *CurlContext, extraArgs string) {
-	if ctx.verbose && ctx.headerOutput == "" {
+func SetupContextForRun(ctx *CurlContext, extraArgs []string) {
+	if ctx.verbose && len(ctx.headerOutput) == 0 {
 		ctx.headerOutput = ctx.output // emit headers
 	}
 
 	// do sanity checks and "fix" some parts left remaining from flag parsing
-	if ctx.theUrl == "" && extraArgs != "" {
-		ctx.theUrl = extraArgs
-	}
+	urls := append(ctx.urls, extraArgs...)
+
 	ctx.userAgent = strings.ReplaceAll(ctx.userAgent, "##DE"+"V##", "dev-branch") // split as I want to keep proper date versions unmunged
 
 	if ctx.silentFail || ctx.isSilent {
 		ctx.isSilent = true   // implied
 		ctx.silentFail = true // both are the same thing right now, we only emit errors (or content)
-		if ctx.output == "stdout" {
-			ctx.output = "null"
-		}
+		ctx.output = []string{}
 	}
 	if ctx.headOnly {
-		if ctx.headerOutput == "" {
-			ctx.headerOutput = "-"
+		if len(ctx.headerOutput) == 0 {
+			ctx.headerOutput = []string{"-"}
 		}
 		ctx.SetMethodIfNotSet("HEAD")
 	}
 
-	if ctx.theUrl != "" {
-		u, err := url.Parse(ctx.theUrl)
-		changed := false
-		HandleErrorAndExit(err, ctx, ERROR_INVALID_URL, fmt.Sprintf("Could not parse url: %q", ctx.theUrl))
-		if u.Scheme == "" {
-			u.Scheme = "http"
-			changed = true
-		}
-		if u.Host == "" {
-			u.Host = "localhost"
-			changed = true
-		}
-		if changed {
-			ctx.theUrl = u.String()
+	ctx.urls = []string{}
+	if len(urls) > 0 {
+		for _, s := range urls {
+			if strings.Index(s, "/") == 0 {
+				// url is /something/here - assume localhost!
+				s = "http://localhost" + s
+			} else if !strings.Contains(s, "://") { // ok, wasn't a root relative path, but no protocol/not a valid url, let's try to set the protocol directly
+				s = "http://" + s
+			}
+
+			u, err := url.Parse(s)
+			HandleErrorAndExit(err, ctx, ERROR_INVALID_URL, fmt.Sprintf("Could not parse url: %q", s))
+
+			// FIXME: do we even need these?
+			if u.Scheme == "" {
+				u.Scheme = "http"
+			}
+			if u.Host == "" {
+				u.Host = "localhost"
+			}
+			// FIXME_END
+
+			ctx.urls = append(ctx.urls, u.String())
 		}
 	}
 
 	ctx._jar = CreateEmptyJar(ctx)
 
-	if ctx.uploadFile != "" {
+	if len(ctx.uploadFile) > 0 {
 		HandleUploadFile(ctx)
 	} else if len(ctx.form_encoded) > 0 {
 		HandleFormEncoded(ctx)
@@ -201,15 +212,17 @@ func CreateEmptyJar(ctx *CurlContext) (jar *cookieJar.Jar) {
 }
 
 func HandleUploadFile(ctx *CurlContext) {
-	f, err := os.ReadFile(ctx.uploadFile)
-	HandleErrorAndExit(err, ctx, ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", ctx.uploadFile))
-	mime := mime.TypeByExtension(path.Ext(ctx.uploadFile))
-	if mime == "" {
-		mime = "application/octet-stream"
+	for _, file := range ctx.uploadFile {
+		f, err := os.ReadFile(file)
+		HandleErrorAndExit(err, ctx, ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", ctx.uploadFile))
+		mime := mime.TypeByExtension(path.Ext(file))
+		if mime == "" {
+			mime = "application/octet-stream"
+		}
+		body := &bytes.Buffer{}
+		body.Write(f)
+		ctx.AddBody(body, mime, "PUT")
 	}
-	body := &bytes.Buffer{}
-	body.Write(f)
-	ctx.SetBody(body, mime, "POST")
 }
 func HandleFormEncoded(ctx *CurlContext) {
 	formBody := url.Values{}
@@ -242,7 +255,7 @@ func HandleFormEncoded(ctx *CurlContext) {
 		}
 	}
 	body := strings.NewReader(formBody.Encode())
-	ctx.SetBody(body, "application/x-www-form-urlencoded", "POST")
+	ctx.AddBody(body, "application/x-www-form-urlencoded", "POST")
 }
 func HandleFormMultipart(ctx *CurlContext) {
 	body := &bytes.Buffer{}
@@ -280,7 +293,7 @@ func HandleFormMultipart(ctx *CurlContext) {
 	}
 	writer.Close()
 
-	ctx.SetBody(body, "multipart/form-data; boundary="+writer.Boundary(), "POST")
+	ctx.AddBody(body, "multipart/form-data; boundary="+writer.Boundary(), "POST")
 }
 func PanicIfError(err error) {
 	if err != nil {
@@ -318,10 +331,12 @@ func BuildClient(ctx *CurlContext) (client *http.Client) {
 	}
 	return
 }
-func BuildRequest(ctx *CurlContext) (request *http.Request) {
-	request, _ = http.NewRequest(strings.ToUpper(ctx.method), ctx.theUrl, ctx._body)
-	if ctx._body_contentType != "" {
-		request.Header.Add("Content-Type", ctx._body_contentType)
+func BuildRequest(ctx *CurlContext, index int) (request *http.Request) {
+	url := ctx.urls[index]
+	body, mime := getNextInputsFromContext(ctx, index)
+	request, _ = http.NewRequest(strings.ToUpper(ctx.method), url, body)
+	if mime != "" {
+		request.Header.Add("Content-Type", mime)
 	}
 	if ctx.userAgent != "" {
 		request.Header.Set("User-Agent", ctx.userAgent)
@@ -337,19 +352,33 @@ func BuildRequest(ctx *CurlContext) (request *http.Request) {
 		}
 	}
 	if ctx.userAuth != "" {
-		auths := strings.SplitN(ctx.userAuth, ":", 2)
+		auths := strings.SplitN(ctx.userAuth, ":", 2) // this way password can contain a :
 		if len(auths) == 1 {
 			fmt.Print("Enter password: ")
 			reader := bufio.NewReader(os.Stdin)
 			input, _ := reader.ReadString('\n') // if unable to read, use blank instead
 			auths = append(auths, input)
+			ctx.userAuth = strings.Join(auths, ":") // for next request, if any
 		}
 		request.SetBasicAuth(auths[0], auths[1])
 	}
 
 	return request
 }
-func HandleBodyResponse(ctx *CurlContext, resp *http.Response, request *http.Request) {
+func getNextInputsFromContext(ctx *CurlContext, index int) (body io.Reader, mime string) {
+	if len(ctx._bodies) > index {
+		body = ctx._bodies[index]
+	} else {
+		body = nil
+	}
+	if len(ctx._bodies_contentType) > index {
+		mime = ctx._bodies_contentType[index]
+	} else {
+		mime = ""
+	}
+	return
+}
+func HandleBodyResponse(ctx *CurlContext, index int, resp *http.Response, request *http.Request) {
 	// emit body
 	var respBody []byte
 	if resp.Body != nil {
@@ -357,21 +386,36 @@ func HandleBodyResponse(ctx *CurlContext, resp *http.Response, request *http.Req
 		respBody, _ = io.ReadAll(resp.Body)
 	}
 
+	headerOutput, contentOutput := getNextOutputsFromContext(ctx, index)
+
 	if ctx.headOnly {
-		writeToFileBytes(ctx, ctx.headerOutput, GetHeaderBytes(ctx, resp, request, false))
+		writeToFileBytes(ctx, headerOutput, GetHeaderBytes(ctx, resp, request, false))
 	} else if ctx.includeHeadersInMainOutput {
 		bytesOut := append(GetHeaderBytes(ctx, resp, request, true), respBody...)
-		writeToFileBytes(ctx, ctx.output, bytesOut) // do all at once
-		if ctx.headerOutput != ctx.output {
-			writeToFileBytes(ctx, ctx.headerOutput, GetHeaderBytes(ctx, resp, request, false)) // also emit headers to separate location??
+		writeToFileBytes(ctx, contentOutput, bytesOut) // do all at once
+		if headerOutput != contentOutput {
+			writeToFileBytes(ctx, headerOutput, GetHeaderBytes(ctx, resp, request, false)) // also emit headers to separate location??
 		}
-	} else if ctx.headerOutput == ctx.output {
+	} else if headerOutput == contentOutput {
 		bytesOut := append(GetHeaderBytes(ctx, resp, request, true), respBody...)
-		writeToFileBytes(ctx, ctx.output, bytesOut) // do all at once
+		writeToFileBytes(ctx, contentOutput, bytesOut) // do all at once
 	} else {
-		writeToFileBytes(ctx, ctx.headerOutput, GetHeaderBytes(ctx, resp, request, false))
-		writeToFileBytes(ctx, ctx.output, respBody)
+		writeToFileBytes(ctx, headerOutput, GetHeaderBytes(ctx, resp, request, false))
+		writeToFileBytes(ctx, contentOutput, respBody)
 	}
+}
+func getNextOutputsFromContext(ctx *CurlContext, index int) (headerOutput string, contentOutput string) {
+	if len(ctx.output) > index {
+		contentOutput = ctx.output[index]
+	} else {
+		contentOutput = DEFAULT_OUTPUT
+	}
+	if len(ctx.headerOutput) > index {
+		headerOutput = ctx.headerOutput[index]
+	} else {
+		headerOutput = ""
+	}
+	return
 }
 func GetTlsVersionString(version uint16) (res string) {
 	switch version {
