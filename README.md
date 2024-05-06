@@ -47,12 +47,9 @@ curl https://my.local.test:443 -k
 # Using in a Dockerfile
 ```
 COPY --from=cdwiegand/go-curling:latest /bin/curl /usr/bin/curl
-# OR COPY --from=ghcr.io/cdwiegand/cdwiegand/go-curling:latest /bin/curl /usr/bin/curl
+# OR COPY --from=ghcr.io/cdwiegand/go-curling:latest /bin/curl /usr/bin/curl
 HEALTHCHECK CMD curl -s http://localhost:80
 ```
-
-# Needs
-- Needs automated tests, esp. against a known HTTP server that can return explicit info like our referer, basic auth info, etc.. echoing back for testing purposes.
 
 # Error Codes
 - 6: Response present, but a status code >= 400 (e.g. failing) was returned
@@ -69,3 +66,6 @@ All command line options *NO LONGER* needs to be specified before the URL - this
 
 # Tests
 Tests are now present in the code - run `go test` to run them.
+
+# License
+go-curling is [licensed](./LICENSE) under the [LGPL 2.1 or later](./COPYRIGHT)
