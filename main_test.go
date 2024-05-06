@@ -134,7 +134,7 @@ func helpRun_InnerWithFiles(ctx *CurlContext, handler func(map[string]interface{
 }
 
 // Actual tests
-func Test_GetWithQuery(t *testing.T) {
+func Test_GetWithQuery_CurlContext(t *testing.T) {
 	runContext(t, func(outputFile string) *CurlContext {
 		return &CurlContext{
 			urls:   []string{"https://httpbin.org/get?test=one"},
@@ -158,7 +158,7 @@ func Test_GetWithQuery_CmdLine(t *testing.T) {
 		})
 }
 
-func Test_Headers(t *testing.T) {
+func Test_Headers_CurlContext(t *testing.T) {
 	runContext(t, func(outputFile string) *CurlContext {
 		return &CurlContext{
 			urls:    []string{"https://httpbin.org/headers"},
@@ -197,13 +197,13 @@ func Test_MultipleUrlsOnCmdLine(t *testing.T) {
 		})
 }
 
-func Test_PostWithInlineForm(t *testing.T) {
+func Test_PostWithInlineForm_CurlContext(t *testing.T) {
 	runContext(t, func(outputFile string) *CurlContext {
 		return &CurlContext{
-			urls:         []string{"https://httpbin.org/post"},
-			method:       "POST",
-			output:       []string{outputFile},
-			form_encoded: []string{"test=one"},
+			urls:          []string{"https://httpbin.org/post"},
+			method:        "POST",
+			output:        []string{outputFile},
+			data_standard: []string{"test=one"},
 		}
 	}, func(json map[string]interface{}) {
 		verifyJson(t, json, "form")
@@ -222,14 +222,14 @@ func Test_PostWithInlineForm_CmdLine(t *testing.T) {
 			verifyGot(t, "one", form["test"])
 		})
 }
-func Test_PostWithFilesystemForm(t *testing.T) {
+func Test_PostWithFilesystemForm_CurlContext(t *testing.T) {
 	runContextWithTempFile(t, 1, 1, func(outputFiles []string, tempFiles []string) *CurlContext {
 		os.WriteFile(tempFiles[0], []byte("one"), 0666)
 		return &CurlContext{
-			urls:         []string{"https://httpbin.org/post"},
-			method:       "POST",
-			output:       outputFiles,
-			form_encoded: []string{"test=@" + tempFiles[0]},
+			urls:          []string{"https://httpbin.org/post"},
+			method:        "POST",
+			output:        outputFiles,
+			data_standard: []string{"test=@" + tempFiles[0]},
 		}
 	}, func(json map[string]interface{}, index int) {
 		verifyJson(t, json, "form")
@@ -249,14 +249,14 @@ func Test_PostWithFilesystemForm_CmdLine(t *testing.T) {
 			verifyGot(t, "one", form["test"])
 		})
 }
-func Test_PostWithFilesystemForm2(t *testing.T) {
+func Test_PostWithFilesystemForm2_CurlContext(t *testing.T) {
 	runContextWithTempFile(t, 1, 1, func(outputFiles []string, tempFiles []string) *CurlContext {
 		os.WriteFile(tempFiles[0], []byte("test=one"), 0666)
 		return &CurlContext{
-			urls:         []string{"https://httpbin.org/post"},
-			method:       "POST",
-			output:       outputFiles,
-			form_encoded: []string{"@" + tempFiles[0]},
+			urls:          []string{"https://httpbin.org/post"},
+			method:        "POST",
+			output:        outputFiles,
+			data_standard: []string{"@" + tempFiles[0]},
 		}
 	}, func(json map[string]interface{}, index int) {
 		verifyJson(t, json, "form")
@@ -276,13 +276,13 @@ func Test_PostWithFilesystemForm2_CmdLine(t *testing.T) {
 			verifyGot(t, "one", form["test"])
 		})
 }
-func Test_PostWithMultipartInlineForm(t *testing.T) {
+func Test_PostWithMultipartInlineForm_CurlContext(t *testing.T) {
 	runContext(t, func(outputFile string) *CurlContext {
 		return &CurlContext{
 			urls:           []string{"https://httpbin.org/post"},
 			method:         "POST",
 			output:         []string{outputFile},
-			form_multipart: []string{"test=one"},
+			data_multipart: []string{"test=one"},
 		}
 	}, func(json map[string]interface{}) {
 		verifyJson(t, json, "form")
@@ -301,7 +301,7 @@ func Test_PostWithMultipartInlineForm_CmdLine(t *testing.T) {
 			verifyGot(t, "one", form["test"])
 		})
 }
-func Test_PostWithMultipartFilesystemForm(t *testing.T) {
+func Test_PostWithMultipartFilesystemForm_CurlContext(t *testing.T) {
 	runContextWithTempFile(t, 1, 1,
 		func(outputFiles []string, tempFiles []string) *CurlContext {
 			os.WriteFile(tempFiles[0], []byte("one"), 0666)
@@ -309,7 +309,7 @@ func Test_PostWithMultipartFilesystemForm(t *testing.T) {
 				urls:           []string{"https://httpbin.org/post"},
 				method:         "POST",
 				output:         outputFiles,
-				form_multipart: []string{"test=@" + tempFiles[0]},
+				data_multipart: []string{"test=@" + tempFiles[0]},
 			}
 		}, func(json map[string]interface{}, index int) {
 			verifyJson(t, json, "files")
@@ -329,7 +329,7 @@ func Test_PostWithMultipartForm_CmdLine(t *testing.T) {
 			verifyGot(t, "one", files["test"])
 		})
 }
-func Test_PostWithMultipartFilesystemForm2(t *testing.T) {
+func Test_PostWithMultipartFilesystemForm2_CurlContext(t *testing.T) {
 	runContextWithTempFile(t, 1, 1,
 		func(outputFiles []string, tempFiles []string) *CurlContext {
 			os.WriteFile(tempFiles[0], []byte("test=one"), 0666)
@@ -337,7 +337,7 @@ func Test_PostWithMultipartFilesystemForm2(t *testing.T) {
 				urls:           []string{"https://httpbin.org/post"},
 				method:         "POST",
 				output:         outputFiles,
-				form_multipart: []string{"@" + tempFiles[0]},
+				data_multipart: []string{"@" + tempFiles[0]},
 			}
 		}, func(json map[string]interface{}, index int) {
 			verifyJson(t, json, "form")
@@ -358,7 +358,7 @@ func Test_PostWithMultipartForm2_CmdLine(t *testing.T) {
 		})
 }
 
-func Test_PostWithUploadFilesystemForm(t *testing.T) {
+func Test_PostWithUploadFilesystemForm_CurlContext(t *testing.T) {
 	runContextWithTempFile(t, 1, 1,
 		func(outputFiles []string, tempFiles []string) *CurlContext {
 			os.WriteFile(tempFiles[0], []byte("test=one"), 0666)
@@ -387,7 +387,7 @@ func Test_PostWithUploadFilesystemForm_CmdLine(t *testing.T) {
 		})
 }
 
-func Test_PutWithUploadFilesystemForm(t *testing.T) {
+func Test_PutWithUploadFilesystemForm_CurlContext(t *testing.T) {
 	runContextWithTempFile(t, 1, 1,
 		func(outputFiles []string, tempFiles []string) *CurlContext {
 			os.WriteFile(tempFiles[0], []byte("test=one"), 0666)
@@ -415,7 +415,7 @@ func Test_PutWithUploadFilesystemForm_CmdLine(t *testing.T) {
 		})
 }
 
-func Test_PutWithUploadFilesystemFilesForm(t *testing.T) {
+func Test_PutWithUploadFilesystemFilesForm_CurlContext(t *testing.T) {
 	expectedResult := []string{"test=one", "test=two"}
 	runContextWithTempFile(t, 2, 2,
 		func(outputFiles []string, tempFiles []string) *CurlContext {
@@ -448,7 +448,7 @@ func Test_PutWithUploadFilesystemFilesForm_CmdLine(t *testing.T) {
 		})
 }
 
-func Test_Delete(t *testing.T) {
+func Test_Delete_CurlContext(t *testing.T) {
 	runContext(t, func(outputFile string) *CurlContext {
 		return &CurlContext{
 			urls:   []string{"https://httpbin.org/delete"},
@@ -469,7 +469,18 @@ func Test_Delete_CmdLine(t *testing.T) {
 		})
 }
 
-func Test_GetWithCookies(t *testing.T) {
+func Test_RawishForm_CmdLine(t *testing.T) {
+	runCmdLine(t,
+		func(outputFile string) []string {
+			return []string{"-o", outputFile, "https://httpbin.org/post", "-X", "POST", "-d", "{'name': 'Robert J. Oppenheimer'}", "-H", "Content-Type: application/json"}
+		}, func(json map[string]interface{}) {
+			verifyJson(t, json, "data")
+			data := json["data"]
+			verifyGot(t, "{'name': 'Robert J. Oppenheimer'}", data)
+		})
+}
+
+func Test_GetWithCookies_CurlContext(t *testing.T) {
 	runContext(t, func(outputFile string) *CurlContext {
 		return &CurlContext{
 			urls:    []string{"https://httpbin.org/cookies"},
@@ -494,7 +505,7 @@ func Test_GetWithCookies_CmdLine(t *testing.T) {
 		})
 }
 
-func Test_CookieRoundTrip(t *testing.T) {
+func Test_CookieRoundTrip_CurlContext(t *testing.T) {
 	cookieFile := filepath.Join(t.TempDir(), "cookies.dat")
 	runContext(t, func(outputFile string) *CurlContext {
 		return &CurlContext{

@@ -18,11 +18,17 @@ func (ctx *CurlContext) BuildRequest(index int) (request *http.Request) {
 	var body io.Reader // nil
 	mime := ""
 	// must call these BEFORE using ctx.method (as they may set it to POST/PUT if not yet explicitly set)
+	// fixme: add support for mixing them (upload file vs all others?)
+	// fixme: add --data-binary support
 	if len(ctx.uploadFile) > 0 {
-		body, mime = ctx.HandleUploadFile(index)
-	} else if len(ctx.form_encoded) > 0 {
+		body, mime = ctx.HandleUploadRawFile(index)
+	} else if len(ctx.data_standard) > 0 {
+		body, mime = ctx.HandleFormRawWithAtFileSupport()
+	} else if len(ctx.data_encoded) > 0 {
 		body, mime = ctx.HandleFormEncoded()
-	} else if len(ctx.form_multipart) > 0 {
+	} else if len(ctx.data_rawconcat) > 0 {
+		body, mime = ctx.HandleFormRawConcat()
+	} else if len(ctx.data_multipart) > 0 {
 		body, mime = ctx.HandleFormMultipart()
 	}
 

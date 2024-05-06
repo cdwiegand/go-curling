@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-func (ctx *CurlContext) HandleUploadFile(index int) (body io.Reader, mimeType string) {
+func (ctx *CurlContext) HandleUploadRawFile(index int) (body io.Reader, mimeType string) {
 	// DOES use index - sends a file per URL
 	if len(ctx.uploadFile) > index {
 		file := ctx.uploadFile[index]
@@ -29,11 +29,46 @@ func (ctx *CurlContext) HandleUploadFile(index int) (body io.Reader, mimeType st
 	}
 	return
 }
+func (ctx *CurlContext) HandleFormRawWithAtFileSupport() (body io.Reader, mimeType string) {
+	lines := []string{}
+	for _, item := range ctx.data_standard {
+		idxAt := strings.Index(item, "@")
+		idxEqual := strings.Index(item, "=")
+		idxEqualAt := strings.Index(item, "=@")
+		if idxAt == 0 { // @file/path/here
+			filename := strings.TrimPrefix(item, "@")
+			fullForm, err := os.ReadFile(filename)
+			HandleErrorAndExit(err, ctx, ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename))
+			formLines := strings.Split(string(fullForm), "\n")
+			lines = append(lines, formLines...)
+		} else if idxEqual > -1 && idxEqual == idxEqualAt { // name=@value
+			splits := strings.SplitN(item, "=", 2)
+			name := splits[0]
+			value := splits[1]
+			filename := strings.TrimPrefix(value, "@")
+			valueRaw, err := os.ReadFile(filename)
+			HandleErrorAndExit(err, ctx, ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename))
+			lines = append(lines, name+"="+string(valueRaw))
+		} else {
+			lines = append(lines, item)
+		}
+	}
+
+	bodyBuf := &bytes.Buffer{}
+	bodyBuf.Write([]byte(strings.Join(lines, "&")))
+	body = io.Reader(bodyBuf)
+	mimeType = "application/x-www-form-urlencoded"
+	ctx.SetMethodIfNotSet("POST")
+	return
+}
 func (ctx *CurlContext) HandleFormEncoded() (body io.Reader, mimeType string) {
-	// does not use index - form encoded sends the whole form to every URL given
 	formBody := url.Values{}
-	for _, item := range ctx.form_encoded {
-		if strings.HasPrefix(item, "@") {
+	for _, item := range ctx.data_encoded {
+		// fixme: =xxxxx means ignore any = in xxxxx (content) - just URL encode directly? https://curl.se/docs/manpage.html#--data-urlencode
+		idxAt := strings.Index(item, "@")
+		idxEqual := strings.Index(item, "=")
+		idxEqualAt := strings.Index(item, "=@")
+		if idxAt == 0 { // @file/path/here
 			filename := strings.TrimPrefix(item, "@")
 			fullForm, err := os.ReadFile(filename)
 			HandleErrorAndExit(err, ctx, ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename))
@@ -44,20 +79,23 @@ func (ctx *CurlContext) HandleFormEncoded() (body io.Reader, mimeType string) {
 				value := splits[1]
 				formBody.Set(name, value)
 			}
-		} else {
+		} else if idxEqual > -1 && idxEqualAt == idxEqual { // name=@file/path/here
 			splits := strings.SplitN(item, "=", 2)
 			name := splits[0]
 			value := splits[1]
 
-			if strings.HasPrefix(value, "@") {
-				filename := strings.TrimPrefix(value, "@")
-				valueRaw, err := os.ReadFile(filename)
-				HandleErrorAndExit(err, ctx, ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename))
-				//formBody.Set(name, base64.StdEncoding.EncodeToString(valueRaw))
-				formBody.Set(name, string(valueRaw))
-			} else {
-				formBody.Set(name, value)
-			}
+			filename := strings.TrimPrefix(value, "@")
+			valueRaw, err := os.ReadFile(filename)
+			HandleErrorAndExit(err, ctx, ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename))
+			//formBody.Set(name, base64.StdEncoding.EncodeToString(valueRaw))
+			formBody.Set(name, string(valueRaw))
+		} else if idxEqual > -1 { // name=value
+			splits := strings.SplitN(item, "=", 2)
+			name := splits[0]
+			value := splits[1]
+			formBody.Set(name, value)
+		} else {
+			panic("I need a name=value, @file of lines name=value format, or name=@file/path/here")
 		}
 	}
 	body = strings.NewReader(formBody.Encode())
@@ -65,11 +103,18 @@ func (ctx *CurlContext) HandleFormEncoded() (body io.Reader, mimeType string) {
 	ctx.SetMethodIfNotSet("POST")
 	return
 }
+func (ctx *CurlContext) HandleFormRawConcat() (body io.Reader, mimeType string) {
+	bodyBuf := &bytes.Buffer{}
+	bodyBuf.Write([]byte(strings.Join(ctx.data_rawconcat, "&")))
+	body = io.Reader(bodyBuf)
+	mimeType = "application/x-www-form-urlencoded"
+	ctx.SetMethodIfNotSet("POST")
+	return
+}
 func (ctx *CurlContext) HandleFormMultipart() (body io.Reader, mimeType string) {
-	// does not use index - form multipart sends the whole form to every URL given
 	bodyBuf := &bytes.Buffer{}
 	writer := multipart.NewWriter(bodyBuf)
-	for _, item := range ctx.form_multipart {
+	for _, item := range ctx.data_multipart {
 		if strings.HasPrefix(item, "@") {
 			filename := strings.TrimPrefix(item, "@")
 			fullForm, err := os.ReadFile(filename)

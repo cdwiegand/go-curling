@@ -15,7 +15,7 @@
   You should have received a copy of the GNU Lesser General Public
   License along with this library; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110
- */
+*/
 
 package main
 
@@ -48,8 +48,10 @@ type CurlContext struct {
 	cookieJar                  string
 	_jar                       *cookieJar.Jar
 	uploadFile                 []string
-	form_encoded               []string
-	form_multipart             []string
+	data_standard              []string
+	data_encoded               []string
+	data_rawconcat             []string
+	data_multipart             []string
 	headers                    []string
 }
 
@@ -112,8 +114,10 @@ func SetupFlagArgs(ctx *CurlContext, flags *flag.FlagSet) {
 	flags.BoolVarP(&ctx.headOnly, "head", "I", false, "Only return headers (ignoring body content)")
 	flags.BoolVarP(&ctx.includeHeadersInMainOutput, "include", "i", false, "Include headers (prepended to body content)")
 	flags.StringSliceVarP(&ctx.cookies, "cookie", "b", empty, "HTTP cookie, raw HTTP cookie only (use -c for cookie jar files)")
-	flags.StringSliceVarP(&ctx.form_encoded, "data", "d", empty, "HTML form data, set mime type to 'application/x-www-form-urlencoded'")
-	flags.StringSliceVarP(&ctx.form_multipart, "form", "F", empty, "HTML form data, set mime type to 'multipart/form-data'")
+	flags.StringSliceVarP(&ctx.data_standard, "data", "d", empty, "HTML form data (raw or @file), set mime type to 'application/x-www-form-urlencoded'")
+	flags.StringSliceVar(&ctx.data_encoded, "data-urlencode", empty, "HTML form data (URL encoded), set mime type to 'application/x-www-form-urlencoded'")
+	flags.StringSliceVar(&ctx.data_rawconcat, "data-raw", empty, "HTML form data (force raw), set mime type to 'application/x-www-form-urlencoded'")
+	flags.StringSliceVarP(&ctx.data_multipart, "form", "F", empty, "HTML form data (multipart MIME), set mime type to 'multipart/form-data'")
 	flags.StringVarP(&ctx.cookieJar, "cookie-jar", "c", "", "File for storing (read and write) cookies")
 	flags.StringArrayVarP(&ctx.uploadFile, "upload-file", "T", []string{}, "Raw file(s) to PUT (default) to the url(s) given, not encoded")
 	flags.StringArrayVarP(&ctx.headers, "header", "H", []string{}, "Header(s) to append to request")
