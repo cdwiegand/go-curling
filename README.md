@@ -33,6 +33,7 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 | `-d` | `--data` | (none) | name=value OR name=`@`file-path | Send next parameter as POST / `application/x-www-form-urlencoded` |
 | `-F` | `--form` | (none) | name=value OR name=`@`file-path |Send next parameter as POST / `multipart/form-data` |
 | `-T` | `--upload-file` | (none) | file-path | File(s) to upload to given URL(s) (PUT method by default) |
+| `-H` | `--header` | (none) | Header to append to request in the format `"header: value"` | 
 
 # Examples
 

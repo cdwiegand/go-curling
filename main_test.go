@@ -14,13 +14,13 @@ import (
 // helper functions
 func verifyGot(t *testing.T, wanted any, got any) {
 	if got != wanted {
-		t.Logf("got %q wanted %q", got, wanted)
+		t.Errorf("got %q wanted %q", got, wanted)
 	}
 }
 func verifyJson(t *testing.T, json map[string]interface{}, arg string) {
 	if json[arg] == nil {
 		err := fmt.Sprintf("%v was not present in json response", arg)
-		t.Logf(err)
+		t.Errorf(err)
 		panic(err)
 	}
 }
@@ -55,7 +55,7 @@ func runCmdLine(t *testing.T, argsBuilder func(outputFile string) []string, hand
 	flags.Parse(args)
 	extraArgs := flags.Args()
 
-	SetupContextForRun(ctx, extraArgs)
+	ctx.SetupContextForRun(extraArgs)
 	helpRun_Inner(ctx, handler, outputFile)
 }
 func runCmdLineWithTempFile(t *testing.T, countOutputFiles int, countTempFiles int, argsBuilder func(outputFiles []string, tempFiles []string) []string, handler func(map[string]interface{}, int)) {
@@ -79,7 +79,7 @@ func runCmdLineWithTempFile(t *testing.T, countOutputFiles int, countTempFiles i
 	flags.Parse(args)
 	extraArgs := flags.Args()
 
-	SetupContextForRun(ctx, extraArgs)
+	ctx.SetupContextForRun(extraArgs)
 	helpRun_InnerWithFiles(ctx, handler, outputFile)
 }
 func runContext(t *testing.T, contextBuilder func(outputFile string) (ctx *CurlContext), handler func(map[string]interface{})) {
@@ -87,7 +87,7 @@ func runContext(t *testing.T, contextBuilder func(outputFile string) (ctx *CurlC
 	outputFile := filepath.Join(tmpDir, "1.out")
 
 	ctx := contextBuilder(outputFile)
-	SetupContextForRun(ctx, []string{})
+	ctx.SetupContextForRun([]string{})
 	helpRun_Inner(ctx, handler, outputFile)
 }
 func runContextWithTempFile(t *testing.T, countOutputFiles int, countTempFiles int, contextBuilder func(outputFiles []string, tempFiles []string) (ctx *CurlContext), handler func(map[string]interface{}, int)) {
@@ -104,29 +104,29 @@ func runContextWithTempFile(t *testing.T, countOutputFiles int, countTempFiles i
 	}
 
 	ctx := contextBuilder(outputFile, tempFile)
-	SetupContextForRun(ctx, []string{})
+	ctx.SetupContextForRun([]string{})
 	helpRun_InnerWithFiles(ctx, handler, outputFile)
 }
 
 func helpRun_Inner(ctx *CurlContext, handler func(map[string]interface{}), outputFile string) {
-	client := BuildClient(ctx)
+	client := ctx.BuildClient()
 
 	for index := range ctx.urls {
-		request := BuildRequest(ctx, index)
+		request := ctx.BuildRequest(index)
 		resp, err := client.Do(request)
-		ProcessResponse(ctx, index, resp, err, request)
+		ctx.ProcessResponse(index, resp, err, request)
 
 		json := readJson(outputFile)
 		handler(json)
 	}
 }
 func helpRun_InnerWithFiles(ctx *CurlContext, handler func(map[string]interface{}, int), outputFiles []string) {
-	client := BuildClient(ctx)
+	client := ctx.BuildClient()
 
 	for index := range ctx.urls {
-		request := BuildRequest(ctx, index)
+		request := ctx.BuildRequest(index)
 		resp, err := client.Do(request)
-		ProcessResponse(ctx, index, resp, err, request)
+		ctx.ProcessResponse(index, resp, err, request)
 
 		json := readJson(outputFiles[index])
 		handler(json, index)
@@ -155,6 +155,31 @@ func Test_GetWithQuery_CmdLine(t *testing.T) {
 			verifyJson(t, json, "args")
 			args := json["args"].(map[string]any)
 			verifyGot(t, "one", args["test"])
+		})
+}
+
+func Test_Headers(t *testing.T) {
+	runContext(t, func(outputFile string) *CurlContext {
+		return &CurlContext{
+			urls:    []string{"https://httpbin.org/headers"},
+			headers: []string{"X-Hello: World"},
+			output:  []string{outputFile},
+		}
+	}, func(json map[string]interface{}) {
+		verifyJson(t, json, "headers")
+		args := json["headers"].(map[string]interface{})
+		verifyGot(t, "World", args["X-Hello"])
+	})
+}
+func Test_Headers_Cmdline(t *testing.T) {
+	runCmdLine(t,
+		func(outputFile string) []string {
+			return []string{"https://httpbin.org/headers", "-H", "X-Hello: World", "-o", outputFile}
+		},
+		func(json map[string]interface{}) {
+			verifyJson(t, json, "headers")
+			args := json["headers"].(map[string]interface{})
+			verifyGot(t, "World", args["X-Hello"])
 		})
 }
 
@@ -368,7 +393,6 @@ func Test_PutWithUploadFilesystemForm(t *testing.T) {
 			os.WriteFile(tempFiles[0], []byte("test=one"), 0666)
 			return &CurlContext{
 				urls:       []string{"https://httpbin.org/put"},
-				method:     "PUT",
 				output:     outputFiles,
 				uploadFile: tempFiles,
 			}
