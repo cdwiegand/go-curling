@@ -41,5 +41,7 @@ jobs:
           # unavail platforms: linux/riscv64,linux/mips64le,linux/mips64 # no alpine image
           push: true
           tags: |
+            ghcr.io/${{ github.repository }}:latest
             ghcr.io/${{ github.actor }}/${{ github.repository }}:latest
             docker.io/${{ vars.DOCKER_HUB_USERNAME }}/${{ vars.DOCKER_HUB_REPOSITORY }}:latest
+          # second ghcr URL is ONLY because I had published under that URL for over a year.. :(
