@@ -9,7 +9,7 @@ LABEL org.opencontainers.image.licenses="LGPL-2.1-or-later"
 LABEL org.opencontainers.image.title="go-curling"
 
 WORKDIR /src
-COPY go.mod go.sum main.go /src/
+COPY go.mod go.sum main.go cli context /src/
 RUN sed -i "s/##DEV##/(`date -Idate`)/" /src/main.go && go build -o /bin/curl .
 
 FROM golang:alpine AS final

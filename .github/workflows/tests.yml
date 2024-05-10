@@ -1,0 +1,23 @@
+name: Go Tests
+
+on: [push]
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+      - name: Install dependencies
+        run: go get .
+      - name: Build
+        run: go build -v ./...
+      - name: Test go-curling via context
+        run: go test ./tests/context
+      - name: Test go-curling via cli
+        run: go test ./tests/cli
