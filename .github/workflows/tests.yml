@@ -17,7 +17,5 @@ jobs:
         run: go get .
       - name: Build
         run: go build -v ./...
-      - name: Test go-curling via context
-        run: go test ./tests/context
-      - name: Test go-curling via cli
-        run: go test ./tests/cli
+      - name: Test go-curling
+        run: go test ./...

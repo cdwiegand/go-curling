@@ -5,7 +5,7 @@ LABEL org.opencontainers.image.source="https://github.com/cdwiegand/go-curling"
 LABEL org.opencontainers.image.documentation="https://github.com/cdwiegand/go-curling/README.md"
 LABEL org.opencontainers.image.base.name="ghcr.io/cdwiegand/go-curling:latest"
 LABEL org.opencontainers.image.description="Reimplementation of curl in golang"
-LABEL org.opencontainers.image.licenses="LGPL-2.1-or-later"
+LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.title="go-curling"
 
 WORKDIR /src

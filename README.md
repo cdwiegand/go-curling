@@ -111,4 +111,4 @@ All command line options *NO LONGER* needs to be specified before the URL - this
 Tests are now present in the code - run `go test -v ./...` to run them.
 
 # License
-go-curling is [licensed](./LICENSE) under the [LGPL 2.1 or later](./COPYRIGHT)
+go-curling is licensed under the [MIT License](./LICENSE). Previously it was licensed under the LGPL - as I am the sole author prior to this change, I approve the change.
