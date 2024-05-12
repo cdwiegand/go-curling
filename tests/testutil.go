@@ -74,12 +74,14 @@ func RunTestRun(ctx *curl.CurlContext, run *TestRun) {
 			run.ErrorHandler(cerr)
 			return
 		}
+
 		resp, cerr := ctx.Do(client, request)
 		if cerr != nil {
 			run.ErrorHandler(cerr)
 			return
 		}
-		ctx.ProcessResponse(index, resp, request)
+
+		cerr = ctx.ProcessResponse(index, resp, request)
 		if cerr != nil {
 			run.ErrorHandler(cerr)
 			return
