@@ -12,37 +12,49 @@ import (
 	curlerrors "github.com/cdwiegand/go-curling/errors"
 )
 
+type TestRun struct {
+	OutputFiles           []string
+	InputFiles            []string
+	SuccessHandler        func(map[string]interface{})
+	SuccessHandlerIndexed func(map[string]interface{}, int)
+	ErrorHandler          func(*curlerrors.CurlError)
+}
+
 func GenericErrorHandler(t *testing.T, err *curlerrors.CurlError) {
 	t.Errorf("Got error %v", err)
 }
 
 // helper functions
-func VerifyGot(t *testing.T, wanted any, got any) {
+func VerifyGot(t *testing.T, wanted any, got any) bool {
 	if got != wanted {
 		t.Errorf("got %q wanted %q", got, wanted)
+		return false
 	}
+	return true
 }
-func VerifyJson(t *testing.T, json map[string]interface{}, arg string) {
+func VerifyJson(t *testing.T, json map[string]interface{}, arg string) bool {
 	if json[arg] == nil {
 		err := fmt.Sprintf("%v was not present in json response", arg)
 		t.Errorf(err)
-		panic(err)
+		return false
 	}
+	return true
 }
 
-func ReadJson(file string) (res map[string]interface{}) {
+func ReadJson(file string) (res map[string]interface{}, err error) {
 	jsonFile, err := os.Open(file)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	defer jsonFile.Close()
 
 	byteValue, err := io.ReadAll(jsonFile)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
+
 	json.Unmarshal([]byte(byteValue), &res)
-	return
+	return res, nil
 }
 
 func BuildFileList(count int, outputDir string, ext string) (files []string) {
@@ -53,48 +65,37 @@ func BuildFileList(count int, outputDir string, ext string) (files []string) {
 	return
 }
 
-func HelpRun_Inner(ctx *curl.CurlContext, successHandler func(map[string]interface{}), outputFile string, errorHandler func(*curlerrors.CurlError)) {
+func RunTestRun(ctx *curl.CurlContext, run *TestRun) {
 	client := ctx.BuildClient()
 
 	for index := range ctx.Urls {
-		request, err := ctx.BuildRequest(index)
-		if err != nil {
-			errorHandler(err)
+		request, cerr := ctx.BuildRequest(index)
+		if cerr != nil {
+			run.ErrorHandler(cerr)
+			return
 		}
-		resp, err := ctx.Do(client, request)
-		if err != nil {
-			errorHandler(err)
+		resp, cerr := ctx.Do(client, request)
+		if cerr != nil {
+			run.ErrorHandler(cerr)
+			return
 		}
 		ctx.ProcessResponse(index, resp, request)
-		if err != nil {
-			errorHandler(err)
-		}
-
-		json := ReadJson(outputFile)
-		successHandler(json)
-	}
-}
-
-func HelpRun_InnerWithFiles(ctx *curl.CurlContext, successHandler func(map[string]interface{}, int), outputFiles []string, errorHandler func(*curlerrors.CurlError)) {
-	client := ctx.BuildClient()
-
-	for index := range ctx.Urls {
-		request, err := ctx.BuildRequest(index)
-		if err != nil {
-			errorHandler(err)
+		if cerr != nil {
+			run.ErrorHandler(cerr)
 			return
 		}
-		resp, err := ctx.Do(client, request)
+
+		json, err := ReadJson(run.OutputFiles[index])
 		if err != nil {
-			errorHandler(err)
+			run.ErrorHandler(curlerrors.NewCurlError2(curlerrors.ERROR_STATUS_CODE_FAILURE, "Failed to parse JSON", err))
 			return
 		}
-		err = ctx.ProcessResponse(index, resp, request)
-		if err != nil {
-			errorHandler(err)
-		}
 
-		json := ReadJson(outputFiles[index])
-		successHandler(json, index)
+		if run.SuccessHandler != nil {
+			run.SuccessHandler(json)
+		}
+		if run.SuccessHandlerIndexed != nil {
+			run.SuccessHandlerIndexed(json, index)
+		}
 	}
 }

@@ -24,8 +24,8 @@ type UploadInformation struct {
 func (ctx *CurlContext) HandleUploadRawFile(index int) (*UploadInformation, *curlerrors.CurlError) {
 	// DOES use index - sends a file per URL
 	ret := &UploadInformation{}
-	if len(ctx.Upload_file) > index {
-		filename := ctx.Upload_file[index]
+	if len(ctx.Upload_File) > index {
+		filename := ctx.Upload_File[index]
 		f, err := os.ReadFile(filename)
 		if err != nil {
 			return nil, curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
@@ -52,7 +52,7 @@ func (ctx *CurlContext) HandleFormMultipart() (*UploadInformation, *curlerrors.C
 	ret := &UploadInformation{}
 	bodyBuf := &bytes.Buffer{}
 	writer := multipart.NewWriter(bodyBuf)
-	for _, item := range ctx.Form_multipart {
+	for _, item := range ctx.Form_Multipart {
 		_, idxEqual, _ := identifyDataReferenceIndexes(item)
 		if idxEqual > -1 {
 			splits := strings.SplitN(item, "=", 2)
@@ -126,7 +126,7 @@ func (ctx *CurlContext) HandleDataArgs() (*UploadInformation, *curlerrors.CurlEr
 	return ret, nil
 }
 func (ctx *CurlContext) HasDataArgs() bool {
-	return len(ctx.Data_binary) > 0 || len(ctx.Data_encoded) > 0 || len(ctx.Data_rawasis) > 0 || len(ctx.Data_standard) > 0
+	return len(ctx.Data_Binary) > 0 || len(ctx.Data_Encoded) > 0 || len(ctx.Data_RawAsIs) > 0 || len(ctx.Data_Standard) > 0
 }
 
 // -d / --data: includes already-URL-encoded values (or lines from a file, or a file as already-URL-encoded content with newlines stripped)
@@ -134,7 +134,7 @@ func (ctx *CurlContext) HasDataArgs() bool {
 // -d name=@file
 // -d @file (lines of name=value)
 func handleDataArgs_Standard(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.CurlError {
-	for _, item := range ctx.Data_standard {
+	for _, item := range ctx.Data_Standard {
 		idxAt, idxEqual, idxEqualAt := identifyDataReferenceIndexes(item)
 		if idxAt == 0 { // @file/path/here - file containing name=value lines
 			filename := strings.TrimPrefix(item, "@")
@@ -172,7 +172,7 @@ func handleDataArgs_Standard(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerror
 // --data-urlencoded @file (lines of name=value)
 func handleDataArgs_Encoded(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.CurlError {
 	formBody := url.Values{}
-	for _, item := range ctx.Data_encoded {
+	for _, item := range ctx.Data_Encoded {
 		idxAt, idxEqual, idxEqualAt := identifyDataReferenceIndexes(item)
 		if idxAt == 0 { // @file/path/here - file containing name=value lines
 			filename := strings.TrimPrefix(item, "@")
@@ -218,7 +218,7 @@ func handleDataArgs_Encoded(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors
 // --data-raw name=value
 // note: no name=@file or @file support
 func handleDataArgs_RawAsIs(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.CurlError {
-	for _, item := range ctx.Data_rawasis {
+	for _, item := range ctx.Data_RawAsIs {
 		appendDataString(bodyBuf, item)
 	}
 	return nil
@@ -229,7 +229,7 @@ func handleDataArgs_RawAsIs(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors
 // --data-binary name=@file
 // --data-binary @file (lines of name=value)
 func handleDataArgs_Binary(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.CurlError {
-	for _, item := range ctx.Data_binary {
+	for _, item := range ctx.Data_Binary {
 		idxAt, idxEqual, idxEqualAt := identifyDataReferenceIndexes(item)
 		if idxAt == 0 { // @file/path/here - file containing name=value lines
 			filename := strings.TrimPrefix(item, "@")

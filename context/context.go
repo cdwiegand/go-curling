@@ -32,13 +32,14 @@ type CurlContext struct {
 	ErrorOutput                string
 	Cookies                    []string
 	CookieJar                  string
+	JunkSessionCookies         bool
 	Jar                        *cookieJar.Jar
-	Upload_file                []string
-	Data_standard              []string
-	Data_encoded               []string
-	Data_rawasis               []string
-	Data_binary                []string
-	Form_multipart             []string
+	Upload_File                []string
+	Data_Standard              []string
+	Data_Encoded               []string
+	Data_RawAsIs               []string
+	Data_Binary                []string
+	Form_Multipart             []string
 	Headers                    []string
 }
 
@@ -64,10 +65,10 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 	}
 
 	countMutuallyExclusiveActions := 0
-	if len(ctx.Upload_file) > 0 {
+	if len(ctx.Upload_File) > 0 {
 		countMutuallyExclusiveActions += 1
 	}
-	if len(ctx.Form_multipart) > 0 {
+	if len(ctx.Form_Multipart) > 0 {
 		countMutuallyExclusiveActions += 1
 	}
 	if ctx.HasDataArgs() {
@@ -113,7 +114,7 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 	jar, err := cookieJar.New(&cookieJar.Options{
 		PublicSuffixList:      publicsuffix.List,
 		Filename:              ctx.CookieJar,
-		PersistSessionCookies: true,
+		PersistSessionCookies: !ctx.JunkSessionCookies,
 	})
 	if err != nil {
 		return curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, "Unable to create cookie jar", err)

@@ -31,13 +31,13 @@ func (ctx *CurlContext) BuildRequest(index int) (request *http.Request, err *cur
 	// must call these BEFORE using ctx.method (as they may set it to POST/PUT if not yet explicitly set)
 	// fixme: add support for mixing them (upload file vs all others?)
 	// fixme: add --data-binary support
-	if len(ctx.Upload_file) > 0 {
+	if len(ctx.Upload_File) > 0 {
 		upload, err = ctx.HandleUploadRawFile(index)
 		if err != nil {
 			return nil, err // just stop now
 		}
 	}
-	if len(ctx.Form_multipart) > 0 {
+	if len(ctx.Form_Multipart) > 0 {
 		upload, err = ctx.HandleFormMultipart()
 		if err != nil {
 			return nil, err // just stop now
@@ -86,7 +86,15 @@ func (ctx *CurlContext) BuildRequest(index int) (request *http.Request, err *cur
 	}
 	if ctx.Cookies != nil {
 		for _, cookie := range ctx.Cookies {
-			request.Header.Add("Cookie", cookie)
+			if !strings.Contains(cookie, "=") { // curl does this, so... ugh, wish golang had .Net's System.IO.Path.Exists() in a safe way
+				f, err := os.ReadFile(cookie)
+				if err != nil {
+					return nil, curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", cookie), err)
+				}
+				request.Header.Add("Cookie", string(f))
+			} else {
+				request.Header.Add("Cookie", cookie)
+			}
 		}
 	}
 	if ctx.UserAuth != "" {

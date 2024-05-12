@@ -13,10 +13,10 @@ import (
 )
 
 func Test_GetWithQuery_CurlContext(t *testing.T) {
-	RunContext(t, func(outputFile string) *curl.CurlContext {
+	RunContext(t, func(testrun *curltest.TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
 			Urls:   []string{"https://httpbin.org/get?test=one"},
-			Output: []string{outputFile},
+			Output: testrun.OutputFiles,
 		}
 	}, func(json map[string]interface{}) {
 		curltest.VerifyJson(t, json, "args")
@@ -28,11 +28,11 @@ func Test_GetWithQuery_CurlContext(t *testing.T) {
 }
 
 func Test_Headers_CurlContext(t *testing.T) {
-	RunContext(t, func(outputFile string) *curl.CurlContext {
+	RunContext(t, func(testrun *curltest.TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
 			Urls:    []string{"https://httpbin.org/headers"},
 			Headers: []string{"X-Hello: World"},
-			Output:  []string{outputFile},
+			Output:  testrun.OutputFiles,
 		}
 	}, func(json map[string]interface{}) {
 		curltest.VerifyJson(t, json, "headers")
@@ -44,12 +44,12 @@ func Test_Headers_CurlContext(t *testing.T) {
 }
 
 func Test_PostWithInlineForm_CurlContext(t *testing.T) {
-	RunContext(t, func(outputFile string) *curl.CurlContext {
+	RunContext(t, func(testrun *curltest.TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
 			Urls:          []string{"https://httpbin.org/post"},
 			Method:        "POST",
-			Output:        []string{outputFile},
-			Data_standard: []string{"test=one"},
+			Output:        testrun.OutputFiles,
+			Data_Standard: []string{"test=one"},
 		}
 	}, func(json map[string]interface{}) {
 		curltest.VerifyJson(t, json, "form")
@@ -61,13 +61,13 @@ func Test_PostWithInlineForm_CurlContext(t *testing.T) {
 }
 
 func Test_PostWithFilesystemForm_CurlContext(t *testing.T) {
-	RunContextWithTempFile(t, 1, 1, func(outputFiles []string, tempFiles []string) *curl.CurlContext {
-		os.WriteFile(tempFiles[0], []byte("one"), 0666)
+	RunContextWithTempFile(t, 1, 1, func(testrun *curltest.TestRun) *curl.CurlContext {
+		os.WriteFile(testrun.InputFiles[0], []byte("one"), 0666)
 		return &curl.CurlContext{
 			Urls:          []string{"https://httpbin.org/post"},
 			Method:        "POST",
-			Output:        outputFiles,
-			Data_standard: []string{"test=@" + tempFiles[0]},
+			Output:        testrun.OutputFiles,
+			Data_Standard: []string{"test=@" + testrun.InputFiles[0]},
 		}
 	}, func(json map[string]interface{}, index int) {
 		curltest.VerifyJson(t, json, "form")
@@ -79,13 +79,13 @@ func Test_PostWithFilesystemForm_CurlContext(t *testing.T) {
 }
 
 func Test_PostWithFilesystemBinaryForm_CurlContext(t *testing.T) {
-	RunContextWithTempFile(t, 1, 1, func(outputFiles []string, tempFiles []string) *curl.CurlContext {
-		os.WriteFile(tempFiles[0], []byte("a&b=c"), 0666)
+	RunContextWithTempFile(t, 1, 1, func(testrun *curltest.TestRun) *curl.CurlContext {
+		os.WriteFile(testrun.InputFiles[0], []byte("a&b=c"), 0666)
 		return &curl.CurlContext{
 			Urls:        []string{"https://httpbin.org/post"},
 			Method:      "POST",
-			Output:      outputFiles,
-			Data_binary: []string{"test=@" + tempFiles[0]},
+			Output:      testrun.OutputFiles,
+			Data_Binary: []string{"test=@" + testrun.InputFiles[0]},
 		}
 	}, func(json map[string]interface{}, index int) {
 		curltest.VerifyJson(t, json, "form")
@@ -98,13 +98,13 @@ func Test_PostWithFilesystemBinaryForm_CurlContext(t *testing.T) {
 }
 
 func Test_PostWithFilesystemForm2_CurlContext(t *testing.T) {
-	RunContextWithTempFile(t, 1, 1, func(outputFiles []string, tempFiles []string) *curl.CurlContext {
-		os.WriteFile(tempFiles[0], []byte("test=one"), 0666)
+	RunContextWithTempFile(t, 1, 1, func(testrun *curltest.TestRun) *curl.CurlContext {
+		os.WriteFile(testrun.InputFiles[0], []byte("test=one"), 0666)
 		return &curl.CurlContext{
 			Urls:          []string{"https://httpbin.org/post"},
 			Method:        "POST",
-			Output:        outputFiles,
-			Data_standard: []string{"@" + tempFiles[0]},
+			Output:        testrun.OutputFiles,
+			Data_Standard: []string{"@" + testrun.InputFiles[0]},
 		}
 	}, func(json map[string]interface{}, index int) {
 		curltest.VerifyJson(t, json, "form")
@@ -115,12 +115,12 @@ func Test_PostWithFilesystemForm2_CurlContext(t *testing.T) {
 	})
 }
 func Test_PostWithMultipartInlineForm_CurlContext(t *testing.T) {
-	RunContext(t, func(outputFile string) *curl.CurlContext {
+	RunContext(t, func(testrun *curltest.TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
 			Urls:           []string{"https://httpbin.org/post"},
 			Method:         "POST",
-			Output:         []string{outputFile},
-			Form_multipart: []string{"test=one"},
+			Output:         testrun.OutputFiles,
+			Form_Multipart: []string{"test=one"},
 		}
 	}, func(json map[string]interface{}) {
 		curltest.VerifyJson(t, json, "form")
@@ -132,13 +132,13 @@ func Test_PostWithMultipartInlineForm_CurlContext(t *testing.T) {
 }
 func Test_PostWithMultipartForm_CurlContext(t *testing.T) {
 	RunContextWithTempFile(t, 1, 1,
-		func(outputFiles []string, tempFiles []string) *curl.CurlContext {
-			os.WriteFile(tempFiles[0], []byte("one"), 0666)
+		func(testrun *curltest.TestRun) *curl.CurlContext {
+			os.WriteFile(testrun.InputFiles[0], []byte("one"), 0666)
 			return &curl.CurlContext{
 				Urls:           []string{"https://httpbin.org/post"},
 				Method:         "POST",
-				Output:         outputFiles,
-				Form_multipart: []string{"test=@" + tempFiles[0]},
+				Output:         testrun.OutputFiles,
+				Form_Multipart: []string{"test=@" + testrun.InputFiles[0]},
 			}
 		}, func(json map[string]interface{}, index int) {
 			curltest.VerifyJson(t, json, "files")
@@ -150,12 +150,12 @@ func Test_PostWithMultipartForm_CurlContext(t *testing.T) {
 }
 func Test_PostWithMultipartForm2_CurlContext(t *testing.T) {
 	RunContext(t,
-		func(outputFile string) *curl.CurlContext {
+		func(testrun *curltest.TestRun) *curl.CurlContext {
 			return &curl.CurlContext{
 				Urls:           []string{"https://httpbin.org/post"},
 				Method:         "POST",
-				Output:         []string{outputFile},
-				Form_multipart: []string{"test=one"},
+				Output:         testrun.OutputFiles,
+				Form_Multipart: []string{"test=one"},
 			}
 		}, func(json map[string]interface{}) {
 			curltest.VerifyJson(t, json, "form")
@@ -167,13 +167,13 @@ func Test_PostWithMultipartForm2_CurlContext(t *testing.T) {
 }
 func Test_PostWithMultipartForm3_CurlContext(t *testing.T) {
 	RunContextWithTempFile(t, 1, 1,
-		func(outputFiles []string, tempFiles []string) *curl.CurlContext {
-			os.WriteFile(tempFiles[0], []byte("one"), 0666)
+		func(testrun *curltest.TestRun) *curl.CurlContext {
+			os.WriteFile(testrun.InputFiles[0], []byte("one"), 0666)
 			return &curl.CurlContext{
 				Urls:           []string{"https://httpbin.org/post"},
 				Method:         "POST",
-				Output:         outputFiles,
-				Form_multipart: []string{"test=<" + tempFiles[0]},
+				Output:         testrun.OutputFiles,
+				Form_Multipart: []string{"test=<" + testrun.InputFiles[0]},
 			}
 		}, func(json map[string]interface{}, index int) {
 			curltest.VerifyJson(t, json, "form")
@@ -185,13 +185,13 @@ func Test_PostWithMultipartForm3_CurlContext(t *testing.T) {
 }
 func Test_PostWithMultipartForm4_CurlContext(t *testing.T) {
 	RunContextWithTempFile(t, 1, 1,
-		func(outputFiles []string, tempFiles []string) *curl.CurlContext {
-			os.WriteFile(tempFiles[0], []byte("one"), 0666)
+		func(testrun *curltest.TestRun) *curl.CurlContext {
+			os.WriteFile(testrun.InputFiles[0], []byte("one"), 0666)
 			return &curl.CurlContext{
 				Urls:           []string{"https://httpbin.org/post"},
 				Method:         "POST",
-				Output:         outputFiles,
-				Form_multipart: []string{"@" + tempFiles[0]},
+				Output:         testrun.OutputFiles,
+				Form_Multipart: []string{"@" + testrun.InputFiles[0]},
 			}
 		}, func(json map[string]interface{}, index int) {
 			curltest.GenericErrorHandler(t, curlerrors.NewCurlError0("Should not succeed as -F does not support directly pulling a @file reference!"))
@@ -201,13 +201,13 @@ func Test_PostWithMultipartForm4_CurlContext(t *testing.T) {
 }
 func Test_PostWithUpload_filesystemForm_CurlContext(t *testing.T) {
 	RunContextWithTempFile(t, 1, 1,
-		func(outputFiles []string, tempFiles []string) *curl.CurlContext {
-			os.WriteFile(tempFiles[0], []byte("test=one"), 0666)
+		func(testrun *curltest.TestRun) *curl.CurlContext {
+			os.WriteFile(testrun.InputFiles[0], []byte("test=one"), 0666)
 			return &curl.CurlContext{
 				Urls:        []string{"https://httpbin.org/post"},
 				Method:      "POST",
-				Output:      outputFiles,
-				Upload_file: tempFiles,
+				Output:      testrun.OutputFiles,
+				Upload_File: testrun.InputFiles,
 			}
 		}, func(json map[string]interface{}, index int) {
 			curltest.VerifyJson(t, json, "data")
@@ -219,12 +219,12 @@ func Test_PostWithUpload_filesystemForm_CurlContext(t *testing.T) {
 }
 func Test_PutWithUpload_filesystemForm_CurlContext(t *testing.T) {
 	RunContextWithTempFile(t, 1, 1,
-		func(outputFiles []string, tempFiles []string) *curl.CurlContext {
-			os.WriteFile(tempFiles[0], []byte("test=one"), 0666)
+		func(testrun *curltest.TestRun) *curl.CurlContext {
+			os.WriteFile(testrun.InputFiles[0], []byte("test=one"), 0666)
 			return &curl.CurlContext{
 				Urls:        []string{"https://httpbin.org/put"},
-				Output:      outputFiles,
-				Upload_file: tempFiles,
+				Output:      testrun.OutputFiles,
+				Upload_File: testrun.InputFiles,
 			}
 		}, func(json map[string]interface{}, index int) {
 			curltest.VerifyJson(t, json, "data")
@@ -237,14 +237,14 @@ func Test_PutWithUpload_filesystemForm_CurlContext(t *testing.T) {
 func Test_PutWithUpload_filesystemFilesForm_CurlContext(t *testing.T) {
 	expectedResult := []string{"test=one", "test=two"}
 	RunContextWithTempFile(t, 2, 2,
-		func(outputFiles []string, tempFiles []string) *curl.CurlContext {
-			os.WriteFile(tempFiles[0], []byte(expectedResult[0]), 0666)
-			os.WriteFile(tempFiles[1], []byte(expectedResult[1]), 0666)
+		func(testrun *curltest.TestRun) *curl.CurlContext {
+			os.WriteFile(testrun.InputFiles[0], []byte(expectedResult[0]), 0666)
+			os.WriteFile(testrun.InputFiles[1], []byte(expectedResult[1]), 0666)
 			return &curl.CurlContext{
 				Urls:        []string{"https://httpbin.org/put", "https://httpbin.org/put"},
 				Method:      "PUT",
-				Output:      outputFiles,
-				Upload_file: tempFiles,
+				Output:      testrun.OutputFiles,
+				Upload_File: testrun.InputFiles,
 			}
 		}, func(json map[string]interface{}, index int) {
 			curltest.VerifyJson(t, json, "data")
@@ -255,11 +255,11 @@ func Test_PutWithUpload_filesystemFilesForm_CurlContext(t *testing.T) {
 		})
 }
 func Test_Delete_CurlContext(t *testing.T) {
-	RunContext(t, func(outputFile string) *curl.CurlContext {
+	RunContext(t, func(testrun *curltest.TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
 			Urls:   []string{"https://httpbin.org/delete"},
 			Method: "DELETE",
-			Output: []string{outputFile},
+			Output: testrun.OutputFiles,
 		}
 	}, func(json map[string]interface{}) {
 		// no error means success, it's delete, there's no real response other than a success code
@@ -268,10 +268,10 @@ func Test_Delete_CurlContext(t *testing.T) {
 	})
 }
 func Test_GetWithCookies_CurlContext(t *testing.T) {
-	RunContext(t, func(outputFile string) *curl.CurlContext {
+	RunContext(t, func(testrun *curltest.TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
 			Urls:    []string{"https://httpbin.org/cookies"},
-			Output:  []string{outputFile},
+			Output:  testrun.OutputFiles,
 			Cookies: []string{"testcookie2=value2"},
 		}
 	}, func(json map[string]interface{}) {
@@ -284,10 +284,10 @@ func Test_GetWithCookies_CurlContext(t *testing.T) {
 }
 func Test_CookieRoundTrip_CurlContext(t *testing.T) {
 	cookieFile := filepath.Join(t.TempDir(), "cookies.dat")
-	RunContext(t, func(outputFile string) *curl.CurlContext {
+	RunContext(t, func(testrun *curltest.TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
 			Urls:      []string{"https://httpbin.org/cookies/set/testcookie/testvalue"},
-			Output:    []string{outputFile},
+			Output:    testrun.OutputFiles,
 			CookieJar: cookieFile,
 		}
 	}, func(json map[string]interface{}) {
@@ -298,10 +298,10 @@ func Test_CookieRoundTrip_CurlContext(t *testing.T) {
 		curltest.GenericErrorHandler(t, err)
 	})
 
-	RunContext(t, func(outputFile string) *curl.CurlContext {
+	RunContext(t, func(testrun *curltest.TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
 			Urls:      []string{"https://httpbin.org/cookies"},
-			Output:    []string{outputFile},
+			Output:    testrun.OutputFiles,
 			CookieJar: cookieFile,
 		}
 	}, func(json map[string]interface{}) {
@@ -315,14 +315,14 @@ func Test_CookieRoundTrip_CurlContext(t *testing.T) {
 
 func Test_CannotMixDataFormUploadArgs(t *testing.T) {
 	RunContextWithTempFile(t, 1, 1,
-		func(outputFiles []string, tempFiles []string) *curl.CurlContext {
-			os.WriteFile(tempFiles[0], []byte("test=one"), 0666)
+		func(testrun *curltest.TestRun) *curl.CurlContext {
+			os.WriteFile(testrun.InputFiles[0], []byte("test=one"), 0666)
 			return &curl.CurlContext{
 				Urls:          []string{"https://httpbin.org/post"},
 				Method:        "POST",
-				Output:        outputFiles,
-				Data_standard: []string{"test=one"},
-				Upload_file:   tempFiles,
+				Output:        testrun.OutputFiles,
+				Data_Standard: []string{"test=one"},
+				Upload_File:   testrun.InputFiles,
 			}
 		}, func(json map[string]interface{}, index int) {
 			curltest.GenericErrorHandler(t, curlerrors.NewCurlError0("Should not succeed if -d and -T are mixed!"))
@@ -330,14 +330,14 @@ func Test_CannotMixDataFormUploadArgs(t *testing.T) {
 			// ok, it SHOULD fail, this is not a valid request!
 		})
 	RunContextWithTempFile(t, 1, 1,
-		func(outputFiles []string, tempFiles []string) *curl.CurlContext {
-			os.WriteFile(tempFiles[0], []byte("test=one"), 0666)
+		func(testrun *curltest.TestRun) *curl.CurlContext {
+			os.WriteFile(testrun.InputFiles[0], []byte("test=one"), 0666)
 			return &curl.CurlContext{
 				Urls:           []string{"https://httpbin.org/post"},
 				Method:         "POST",
-				Output:         outputFiles,
-				Data_standard:  []string{"test=one"},
-				Form_multipart: tempFiles,
+				Output:         testrun.OutputFiles,
+				Data_Standard:  []string{"test=one"},
+				Form_Multipart: testrun.InputFiles,
 			}
 		}, func(json map[string]interface{}, index int) {
 			curltest.GenericErrorHandler(t, curlerrors.NewCurlError0("Should not succeed if -d and -F are mixed!"))
@@ -345,15 +345,15 @@ func Test_CannotMixDataFormUploadArgs(t *testing.T) {
 			// ok, it SHOULD fail, this is not a valid request!
 		})
 	RunContextWithTempFile(t, 1, 2,
-		func(outputFiles []string, tempFiles []string) *curl.CurlContext {
-			os.WriteFile(tempFiles[0], []byte("test=one"), 0666)
-			os.WriteFile(tempFiles[1], []byte("test=one"), 0666)
+		func(testrun *curltest.TestRun) *curl.CurlContext {
+			os.WriteFile(testrun.InputFiles[0], []byte("test=one"), 0666)
+			os.WriteFile(testrun.InputFiles[1], []byte("test=one"), 0666)
 			return &curl.CurlContext{
 				Urls:           []string{"https://httpbin.org/post"},
 				Method:         "POST",
-				Output:         outputFiles,
-				Upload_file:    []string{tempFiles[0]},
-				Form_multipart: []string{tempFiles[1]},
+				Output:         testrun.OutputFiles,
+				Upload_File:    []string{testrun.InputFiles[0]},
+				Form_Multipart: []string{testrun.InputFiles[1]},
 			}
 		}, func(json map[string]interface{}, index int) {
 			curltest.GenericErrorHandler(t, curlerrors.NewCurlError0("Should not succeed if -F and -T are mixed!"))
@@ -364,21 +364,21 @@ func Test_CannotMixDataFormUploadArgs(t *testing.T) {
 
 func Test_All4DataArgs(t *testing.T) {
 	RunContextWithTempFile(t, 1, 6,
-		func(outputFiles []string, tempFiles []string) *curl.CurlContext {
-			os.WriteFile(tempFiles[0], []byte("testdatastandard=a&b1=c"), 0666)
-			os.WriteFile(tempFiles[1], []byte("testdatabinary=a&b2=c"), 0666)
-			os.WriteFile(tempFiles[2], []byte("testdataencoded=a&b"), 0666)
-			os.WriteFile(tempFiles[3], []byte("a&b3=c"), 0666)
-			os.WriteFile(tempFiles[4], []byte("a&b4=c"), 0666)
-			os.WriteFile(tempFiles[5], []byte("a&b"), 0666)
+		func(testrun *curltest.TestRun) *curl.CurlContext {
+			os.WriteFile(testrun.InputFiles[0], []byte("testdatastandard=a&b1=c"), 0666)
+			os.WriteFile(testrun.InputFiles[1], []byte("testdatabinary=a&b2=c"), 0666)
+			os.WriteFile(testrun.InputFiles[2], []byte("testdataencoded=a&b"), 0666)
+			os.WriteFile(testrun.InputFiles[3], []byte("a&b3=c"), 0666)
+			os.WriteFile(testrun.InputFiles[4], []byte("a&b4=c"), 0666)
+			os.WriteFile(testrun.InputFiles[5], []byte("a&b"), 0666)
 			return &curl.CurlContext{
 				Urls:          []string{"https://httpbin.org/post"},
 				Method:        "POST",
-				Output:        outputFiles,
-				Data_standard: []string{"@" + tempFiles[0], "testdatastandard2=@" + tempFiles[3]},
-				Data_binary:   []string{"@" + tempFiles[1], "testdatabinary2=@" + tempFiles[4]},
-				Data_encoded:  []string{"@" + tempFiles[2], "testdataencoded2=@" + tempFiles[5]},
-				Data_rawasis:  []string{"testdataraw=@" + tempFiles[5]}, // actual file not used, just want to make sure the "@" comes across properly
+				Output:        testrun.OutputFiles,
+				Data_Standard: []string{"@" + testrun.InputFiles[0], "testdatastandard2=@" + testrun.InputFiles[3]},
+				Data_Binary:   []string{"@" + testrun.InputFiles[1], "testdatabinary2=@" + testrun.InputFiles[4]},
+				Data_Encoded:  []string{"@" + testrun.InputFiles[2], "testdataencoded2=@" + testrun.InputFiles[5]},
+				Data_RawAsIs:  []string{"testdataraw=@" + testrun.InputFiles[5]}, // actual file not used, just want to make sure the "@" comes across properly
 			}
 		},
 		func(json map[string]interface{}, index int) {
