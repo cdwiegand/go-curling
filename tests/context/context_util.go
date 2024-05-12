@@ -6,19 +6,26 @@ import (
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
+	curlerrors "github.com/cdwiegand/go-curling/errors"
 	curltest "github.com/cdwiegand/go-curling/tests"
 )
 
-func RunContext(t *testing.T, contextBuilder func(outputFile string) (ctx *curl.CurlContext), handler func(map[string]interface{})) {
+// FIXME: make a test context? and then clean up these almost-duplicate functions
+
+func RunContext(t *testing.T, contextBuilder func(outputFile string) (ctx *curl.CurlContext), successHandler func(map[string]interface{}), errorHandler func(*curlerrors.CurlError)) {
 	tmpDir := t.TempDir()
 	outputFile := filepath.Join(tmpDir, "1.out")
 
 	ctx := contextBuilder(outputFile)
-	ctx.SetupContextForRun([]string{})
-	HelpRun_Inner(ctx, handler, outputFile)
+	cerr := ctx.SetupContextForRun([]string{})
+	if cerr != nil {
+		errorHandler(cerr)
+		return
+	}
+	curltest.HelpRun_Inner(ctx, successHandler, outputFile, errorHandler)
 }
 
-func RunContextWithTempFile(t *testing.T, countOutputFiles int, countTempFiles int, contextBuilder func(outputFiles []string, tempFiles []string) (ctx *curl.CurlContext), handler func(map[string]interface{}, int)) {
+func RunContextWithTempFile(t *testing.T, countOutputFiles int, countTempFiles int, contextBuilder func(outputFiles []string, tempFiles []string) (ctx *curl.CurlContext), successHandler func(map[string]interface{}, int), errorHandler func(*curlerrors.CurlError)) {
 	tmpDir := t.TempDir()
 
 	outputFile := curltest.BuildFileList(countOutputFiles, tmpDir, "out")
@@ -32,32 +39,10 @@ func RunContextWithTempFile(t *testing.T, countOutputFiles int, countTempFiles i
 	}
 
 	ctx := contextBuilder(outputFile, tempFile)
-	ctx.SetupContextForRun([]string{})
-	HelpRun_InnerWithFiles(ctx, handler, outputFile)
-}
-
-func HelpRun_Inner(ctx *curl.CurlContext, handler func(map[string]interface{}), outputFile string) {
-	client := ctx.BuildClient()
-
-	for index := range ctx.Urls {
-		request := ctx.BuildRequest(index)
-		resp, err := client.Do(request)
-		ctx.ProcessResponse(index, resp, err, request)
-
-		json := curltest.ReadJson(outputFile)
-		handler(json)
+	cerr := ctx.SetupContextForRun([]string{})
+	if cerr != nil {
+		errorHandler(cerr)
+		return
 	}
-}
-
-func HelpRun_InnerWithFiles(ctx *curl.CurlContext, handler func(map[string]interface{}, int), outputFiles []string) {
-	client := ctx.BuildClient()
-
-	for index := range ctx.Urls {
-		request := ctx.BuildRequest(index)
-		resp, err := client.Do(request)
-		ctx.ProcessResponse(index, resp, err, request)
-
-		json := curltest.ReadJson(outputFiles[index])
-		handler(json, index)
-	}
+	curltest.HelpRun_InnerWithFiles(ctx, successHandler, outputFile, errorHandler)
 }

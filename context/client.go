@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	curlerrors "github.com/cdwiegand/go-curling/errors"
 )
 
 func (ctx *CurlContext) BuildClient() (client *http.Client) {
@@ -22,23 +24,34 @@ func (ctx *CurlContext) BuildClient() (client *http.Client) {
 	return
 }
 
-func (ctx *CurlContext) BuildRequest(index int) (request *http.Request) {
+func (ctx *CurlContext) BuildRequest(index int) (request *http.Request, err *curlerrors.CurlError) {
 	url := ctx.Urls[index]
 
-	upload := &UploadInformation{}
+	var upload *UploadInformation
 	// must call these BEFORE using ctx.method (as they may set it to POST/PUT if not yet explicitly set)
 	// fixme: add support for mixing them (upload file vs all others?)
 	// fixme: add --data-binary support
-	if len(ctx.UploadFile) > 0 {
-		upload = ctx.HandleUploadRawFile(index)
-	} else if len(ctx.Data_standard) > 0 {
-		upload = ctx.HandleFormRawWithAtFileSupport()
-	} else if len(ctx.Data_encoded) > 0 {
-		upload = ctx.HandleFormEncoded()
-	} else if len(ctx.Data_rawconcat) > 0 {
-		upload = ctx.HandleFormRawConcat()
-	} else if len(ctx.Data_multipart) > 0 {
-		upload = ctx.HandleFormMultipart()
+	if len(ctx.Upload_file) > 0 {
+		upload, err = ctx.HandleUploadRawFile(index)
+		if err != nil {
+			return nil, err // just stop now
+		}
+	}
+	if len(ctx.Form_multipart) > 0 {
+		upload, err = ctx.HandleFormMultipart()
+		if err != nil {
+			return nil, err // just stop now
+		}
+	}
+	if ctx.HasDataArgs() {
+		upload, err = ctx.HandleDataArgs()
+		if err != nil {
+			return nil, err // just stop now
+		}
+	}
+
+	if upload == nil {
+		upload = &UploadInformation{} // null-safe default please
 	}
 
 	// this should be after all other changes to method!
@@ -88,14 +101,24 @@ func (ctx *CurlContext) BuildRequest(index int) (request *http.Request) {
 		request.SetBasicAuth(auths[0], auths[1])
 	}
 
-	return request
+	return request, nil
 }
 
-func (ctx *CurlContext) ProcessResponse(index int, resp *http.Response, err error, request *http.Request) {
-	ctx.HandleErrorAndExit(err, ERROR_NO_RESPONSE, fmt.Sprintf("Was unable to query URL %v", ctx.Urls[index]))
+func (ctx *CurlContext) Do(client *http.Client, request *http.Request) (*http.Response, *curlerrors.CurlError) {
+	resp, err := client.Do(request)
+	if err != nil {
+		cerr := curlerrors.NewCurlError2(curlerrors.ERROR_NO_RESPONSE, fmt.Sprintf("Was unable to query URL %v", request.URL), err)
+		return resp, cerr
+	}
+	return resp, nil
+}
 
+func (ctx *CurlContext) ProcessResponse(index int, resp *http.Response, request *http.Request) (cerr *curlerrors.CurlError) {
 	err2 := ctx.Jar.Save() // is ignored if jar's filename is empty
-	ctx.HandleErrorAndExit(err2, ERROR_CANNOT_WRITE_FILE, "Failed to save cookies to jar")
+	if err2 != nil {
+		cerr = curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_WRITE_FILE, "Failed to save cookies to jar", err2)
+		// continue anyways!
+	}
 
 	if resp.StatusCode >= 400 {
 		// error
@@ -107,4 +130,5 @@ func (ctx *CurlContext) ProcessResponse(index int, resp *http.Response, err erro
 		// success
 		ctx.EmitResponseToOutputs(index, resp, request)
 	}
+	return
 }

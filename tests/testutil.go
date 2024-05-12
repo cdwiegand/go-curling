@@ -7,7 +7,14 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	curl "github.com/cdwiegand/go-curling/context"
+	curlerrors "github.com/cdwiegand/go-curling/errors"
 )
+
+func GenericErrorHandler(t *testing.T, err *curlerrors.CurlError) {
+	t.Errorf("Got error %v", err)
+}
 
 // helper functions
 func VerifyGot(t *testing.T, wanted any, got any) {
@@ -44,4 +51,50 @@ func BuildFileList(count int, outputDir string, ext string) (files []string) {
 		files = append(files, filepath.Join(outputDir, fmt.Sprintf("%d.%s", i, ext)))
 	}
 	return
+}
+
+func HelpRun_Inner(ctx *curl.CurlContext, successHandler func(map[string]interface{}), outputFile string, errorHandler func(*curlerrors.CurlError)) {
+	client := ctx.BuildClient()
+
+	for index := range ctx.Urls {
+		request, err := ctx.BuildRequest(index)
+		if err != nil {
+			errorHandler(err)
+		}
+		resp, err := ctx.Do(client, request)
+		if err != nil {
+			errorHandler(err)
+		}
+		ctx.ProcessResponse(index, resp, request)
+		if err != nil {
+			errorHandler(err)
+		}
+
+		json := ReadJson(outputFile)
+		successHandler(json)
+	}
+}
+
+func HelpRun_InnerWithFiles(ctx *curl.CurlContext, successHandler func(map[string]interface{}, int), outputFiles []string, errorHandler func(*curlerrors.CurlError)) {
+	client := ctx.BuildClient()
+
+	for index := range ctx.Urls {
+		request, err := ctx.BuildRequest(index)
+		if err != nil {
+			errorHandler(err)
+			return
+		}
+		resp, err := ctx.Do(client, request)
+		if err != nil {
+			errorHandler(err)
+			return
+		}
+		err = ctx.ProcessResponse(index, resp, request)
+		if err != nil {
+			errorHandler(err)
+		}
+
+		json := ReadJson(outputFiles[index])
+		successHandler(json, index)
+	}
 }

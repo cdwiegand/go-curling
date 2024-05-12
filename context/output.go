@@ -21,32 +21,32 @@ func (ctx *CurlContext) EmitResponseToOutputs(index int, resp *http.Response, re
 	sepBody := []byte("\n\n")
 	headerBody := []byte("")
 	if ctx.Verbose {
-		headerBody = appendStrings(headerBody, sepBody, dumpRequestHeaders(request))
+		headerBody = appendStrings(headerBody, sepBody, DumpRequestHeaders(request))
 		if resp.TLS != nil {
-			headerBody = appendStrings(headerBody, sepBody, dumpTlsDetails(resp.TLS))
+			headerBody = appendStrings(headerBody, sepBody, DumpTlsDetails(resp.TLS))
 		}
 	}
-	headerBody = appendStrings(headerBody, sepBody, dumpResponseHeaders(resp, ctx.Verbose))
+	headerBody = appendStrings(headerBody, sepBody, DumpResponseHeaders(resp, ctx.Verbose))
 	headerOutput, contentOutput := ctx.getNextOutputsFromContext(index)
 
 	if ctx.HeadOnly {
-		writeToFileBytes(headerOutput, headerBody)
+		WriteToFileBytes(headerOutput, headerBody)
 	} else if ctx.IncludeHeadersInMainOutput {
 		bytesOut := appendByteArrays(headerBody, sepBody, respBody)
-		writeToFileBytes(contentOutput, bytesOut) // do all at once
+		WriteToFileBytes(contentOutput, bytesOut) // do all at once
 		if headerOutput != contentOutput {
-			writeToFileBytes(headerOutput, headerBody)
+			WriteToFileBytes(headerOutput, headerBody)
 		}
 	} else if headerOutput == contentOutput {
 		bytesOut := appendByteArrays(headerBody, sepBody, respBody)
-		writeToFileBytes(contentOutput, bytesOut) // do all at once
+		WriteToFileBytes(contentOutput, bytesOut) // do all at once
 	} else {
-		writeToFileBytes(headerOutput, headerBody)
-		writeToFileBytes(contentOutput, respBody)
+		WriteToFileBytes(headerOutput, headerBody)
+		WriteToFileBytes(contentOutput, respBody)
 	}
 }
 
-func writeToFileBytes(file string, body []byte) (err error) {
+func WriteToFileBytes(file string, body []byte) (err error) {
 	if file == "/dev/null" || file == "null" || file == "" {
 		// do nothing
 	} else if file == "/dev/stderr" || file == "stderr" {
@@ -73,7 +73,7 @@ func appendByteArrays(resp []byte, sepBody []byte, secondBody []byte) (respOut [
 	return
 }
 
-func dumpResponseHeaders(resp *http.Response, verboseFormat bool) (res []string) {
+func DumpResponseHeaders(resp *http.Response, verboseFormat bool) (res []string) {
 	proto := resp.Proto
 	if resp.Proto == "" {
 		proto = "HTTP/?" // default, sometimes golang won't let you have the HTTP protocol version in the response
@@ -99,7 +99,7 @@ func dumpResponseHeaders(resp *http.Response, verboseFormat bool) (res []string)
 	return
 }
 
-func dumpRequestHeaders(req *http.Request) (res []string) {
+func DumpRequestHeaders(req *http.Request) (res []string) {
 	res = append(res, fmt.Sprintf("%v %v", req.Method, req.URL))
 	dict := make(map[string]string)
 	keys := make([]string, 0, len(req.Header))
@@ -117,7 +117,7 @@ func dumpRequestHeaders(req *http.Request) (res []string) {
 	return
 }
 
-func getTlsVersionString(version uint16) (res string) {
+func GetTlsVersionString(version uint16) (res string) {
 	switch version {
 	case tls.VersionTLS10:
 		res = "TLS 1.0"
@@ -135,8 +135,8 @@ func getTlsVersionString(version uint16) (res string) {
 	return
 }
 
-func dumpTlsDetails(conn *tls.ConnectionState) (res []string) {
-	res = append(res, fmt.Sprintf("TLS Version: %v", getTlsVersionString(conn.Version)))
+func DumpTlsDetails(conn *tls.ConnectionState) (res []string) {
+	res = append(res, fmt.Sprintf("TLS Version: %v", GetTlsVersionString(conn.Version)))
 	res = append(res, fmt.Sprintf("TLS Cipher Suite: %v", tls.CipherSuiteName(conn.CipherSuite)))
 	if conn.NegotiatedProtocol != "" {
 		res = append(res, fmt.Sprintf("TLS Negotiated Protocol: %v", conn.NegotiatedProtocol))

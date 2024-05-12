@@ -1,53 +1,54 @@
 package clitests
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
 	curlcli "github.com/cdwiegand/go-curling/cli"
 	curl "github.com/cdwiegand/go-curling/context"
+	curlerrors "github.com/cdwiegand/go-curling/errors"
 	curltest "github.com/cdwiegand/go-curling/tests"
-	curlcontexttest "github.com/cdwiegand/go-curling/tests/context"
-	flag "github.com/spf13/pflag"
 )
 
-func RunCmdLine(t *testing.T, argsBuilder func(outputFile string) []string, handler func(map[string]interface{})) {
+func RunCmdLine(t *testing.T, argsBuilder func(outputFile string) []string, successHandler func(map[string]interface{}), errorHandler func(*curlerrors.CurlError)) {
 	tmpDir := t.TempDir()
 	outputFile := filepath.Join(tmpDir, "1.out")
 	args := argsBuilder(outputFile)
 
 	ctx := &curl.CurlContext{}
+	_, extraArgs, cerr := curlcli.ParseFlags(args, ctx)
+	if cerr != nil {
+		errorHandler(cerr)
+		return
+	}
 
-	flags := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	curlcli.SetupFlagArgs(ctx, flags)
-	flags.Parse(args)
-	extraArgs := flags.Args()
+	cerr = ctx.SetupContextForRun(extraArgs)
+	if cerr != nil {
+		errorHandler(cerr)
+		return
+	}
 
-	ctx.SetupContextForRun(extraArgs)
-	curlcontexttest.HelpRun_Inner(ctx, handler, outputFile)
+	curltest.HelpRun_Inner(ctx, successHandler, outputFile, errorHandler)
 }
-func RunCmdLineWithTempFile(t *testing.T, countOutputFiles int, countTempFiles int, argsBuilder func(outputFiles []string, tempFiles []string) []string, handler func(map[string]interface{}, int)) {
+func RunCmdLineWithTempFile(t *testing.T, countOutputFiles int, countTempFiles int, argsBuilder func(outputFiles []string, tempFiles []string) []string, successHandler func(map[string]interface{}, int), errorHandler func(*curlerrors.CurlError)) {
 	tmpDir := t.TempDir()
 
 	outputFile := curltest.BuildFileList(countOutputFiles, tmpDir, "out")
-	for _, s := range outputFile {
-		defer os.Remove(s)
-	}
-
 	tempFile := curltest.BuildFileList(countTempFiles, tmpDir, "tmp")
-	for _, s := range tempFile {
-		defer os.Remove(s)
+	args := argsBuilder(outputFile, tempFile)
+
+	ctx := &curl.CurlContext{}
+	_, extraArgs, cerr := curlcli.ParseFlags(args, ctx)
+	if cerr != nil {
+		errorHandler(cerr)
+		return
 	}
 
-	args := argsBuilder(outputFile, tempFile)
-	ctx := &curl.CurlContext{}
+	cerr = ctx.SetupContextForRun(extraArgs)
+	if cerr != nil {
+		errorHandler(cerr)
+		return
+	}
 
-	flags := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	curlcli.SetupFlagArgs(ctx, flags)
-	flags.Parse(args)
-	extraArgs := flags.Args()
-
-	ctx.SetupContextForRun(extraArgs)
-	curlcontexttest.HelpRun_InnerWithFiles(ctx, handler, outputFile)
+	curltest.HelpRun_InnerWithFiles(ctx, successHandler, outputFile, errorHandler)
 }

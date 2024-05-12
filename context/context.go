@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 
+	curlerrors "github.com/cdwiegand/go-curling/errors"
 	cookieJar "github.com/orirawlings/persistent-cookiejar"
 	"golang.org/x/net/publicsuffix"
 )
@@ -16,6 +17,7 @@ type CurlContext struct {
 	Verbose                    bool
 	Method                     string
 	SilentFail                 bool
+	FailEarly                  bool
 	Output                     []string
 	HeaderOutput               []string
 	UserAgent                  string
@@ -31,15 +33,16 @@ type CurlContext struct {
 	Cookies                    []string
 	CookieJar                  string
 	Jar                        *cookieJar.Jar
-	UploadFile                 []string
+	Upload_file                []string
 	Data_standard              []string
 	Data_encoded               []string
-	Data_rawconcat             []string
-	Data_multipart             []string
+	Data_rawasis               []string
+	Data_binary                []string
+	Form_multipart             []string
 	Headers                    []string
 }
 
-func (ctx *CurlContext) SetupContextForRun(extraArgs []string) {
+func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlError {
 	// do sanity checks and "fix" some parts left remaining from flag parsing
 
 	if ctx.Verbose && len(ctx.HeaderOutput) == 0 {
@@ -60,6 +63,23 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) {
 		ctx.SetMethodIfNotSet("HEAD")
 	}
 
+	countMutuallyExclusiveActions := 0
+	if len(ctx.Upload_file) > 0 {
+		countMutuallyExclusiveActions += 1
+	}
+	if len(ctx.Form_multipart) > 0 {
+		countMutuallyExclusiveActions += 1
+	}
+	if ctx.HasDataArgs() {
+		countMutuallyExclusiveActions += 1
+	}
+	if ctx.HeadOnly {
+		countMutuallyExclusiveActions += 1
+	}
+	if countMutuallyExclusiveActions > 1 {
+		return curlerrors.NewCurlError1(curlerrors.ERROR_INVALID_ARGS, "Cannot include more than one option from: -d/--data*, -F/--form, -T/--upload, and -I/--head list")
+	}
+
 	urls := append(ctx.Urls, extraArgs...)
 	ctx.Urls = []string{}
 
@@ -73,7 +93,9 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) {
 			}
 
 			u, err := url.Parse(s)
-			ctx.HandleErrorAndExit(err, ERROR_INVALID_URL, fmt.Sprintf("Could not parse url: %q", s))
+			if err != nil {
+				return curlerrors.NewCurlError2(curlerrors.ERROR_INVALID_URL, fmt.Sprintf("Could not parse url: %q", s), err)
+			}
 
 			// FIXME: do we even need these?
 			if u.Scheme == "" {
@@ -93,8 +115,11 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) {
 		Filename:              ctx.CookieJar,
 		PersistSessionCookies: true,
 	})
-	ctx.HandleErrorAndExit(err, ERROR_CANNOT_READ_FILE, "Unable to create cookie jar")
+	if err != nil {
+		return curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, "Unable to create cookie jar", err)
+	}
 	ctx.Jar = jar
+	return nil
 }
 
 func (ctx *CurlContext) SetMethodIfNotSet(httpMethod string) {

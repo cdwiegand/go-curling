@@ -1,7 +1,11 @@
 package cli
 
 import (
+	"os"
+
 	curl "github.com/cdwiegand/go-curling/context"
+	curlerrors "github.com/cdwiegand/go-curling/errors"
+	"github.com/spf13/pflag"
 	flag "github.com/spf13/pflag"
 )
 
@@ -18,17 +22,33 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	flags.StringVarP(&ctx.Referer, "referer", "e", "", "Referer URL to use with HTTP request")
 	flags.StringArrayVar(&ctx.Urls, "url", []string{}, "Requesting URL")
 	flags.BoolVarP(&ctx.SilentFail, "fail", "f", false, "If fail do not emit contents just return fail exit code (-6)")
+	flags.BoolVar(&ctx.FailEarly, "fail-early", false, "If any URL fails, stop immediately and do not continue.")
 	flags.BoolVarP(&ctx.IgnoreBadCerts, "insecure", "k", false, "Ignore invalid SSL certificates")
 	flags.BoolVarP(&ctx.IsSilent, "silent", "s", false, "Silence all program console output")
 	flags.BoolVarP(&ctx.ShowErrorEvenIfSilent, "show-error", "S", false, "Show error info even if silent mode on")
 	flags.BoolVarP(&ctx.HeadOnly, "head", "I", false, "Only return headers (ignoring body content)")
 	flags.BoolVarP(&ctx.IncludeHeadersInMainOutput, "include", "i", false, "Include headers (prepended to body content)")
 	flags.StringSliceVarP(&ctx.Cookies, "cookie", "b", empty, "HTTP cookie, raw HTTP cookie only (use -c for cookie jar files)")
-	flags.StringSliceVarP(&ctx.Data_standard, "data", "d", empty, "HTML form data (raw or @file), set mime type to 'application/x-www-form-urlencoded'")
-	flags.StringSliceVar(&ctx.Data_encoded, "data-urlencode", empty, "HTML form data (URL encoded), set mime type to 'application/x-www-form-urlencoded'")
-	flags.StringSliceVar(&ctx.Data_rawconcat, "data-raw", empty, "HTML form data (force raw), set mime type to 'application/x-www-form-urlencoded'")
-	flags.StringSliceVarP(&ctx.Data_multipart, "form", "F", empty, "HTML form data (multipart MIME), set mime type to 'multipart/form-data'")
+	flags.StringSliceVarP(&ctx.Data_standard, "data", "d", empty, "HTML form data (send as-is, except for @file reference strips strips CR/LF), sets mime type to 'application/x-www-form-urlencoded' unless specified as a header")
+	flags.StringSliceVar(&ctx.Data_encoded, "data-urlencode", empty, "HTML form data (value or @file lines are URL encoded), sets mime type to 'application/x-www-form-urlencoded' unless specified as a header")
+	flags.StringSliceVar(&ctx.Data_rawasis, "data-raw", empty, "HTML form data (send value exactly as-is, no @file support), sets mime type to 'application/x-www-form-urlencoded' unless specified as a header")
+	flags.StringSliceVar(&ctx.Data_binary, "data-binary", empty, "HTML form data (send value exactly as-is, except for @file reference), sets mime type to 'application/x-www-form-urlencoded' unless specified as a header")
+	flags.StringSliceVarP(&ctx.Form_multipart, "form", "F", empty, "HTML form data (multipart MIME), sets mime type to 'multipart/form-data' unless specified as a header")
 	flags.StringVarP(&ctx.CookieJar, "cookie-jar", "c", "", "File for storing (read and write) cookies")
-	flags.StringArrayVarP(&ctx.UploadFile, "upload-file", "T", []string{}, "Raw file(s) to PUT (default) to the url(s) given, not encoded")
+	flags.StringArrayVarP(&ctx.Upload_file, "upload-file", "T", []string{}, "Raw file(s) to PUT (default) to the url(s) given, not encoded, sets mime type to detected mime type for extension unless specified as a header")
 	flags.StringArrayVarP(&ctx.Headers, "header", "H", []string{}, "Header(s) to append to request")
+}
+
+func ParseFlags(args []string, ctx *curl.CurlContext) (*pflag.FlagSet, []string, *curlerrors.CurlError) {
+	// args: os.Args[1:] normally, if testing you provide :)
+	// I want to be able to test using my own args[], so can't use default flag.Parse()..
+
+	flags := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	SetupFlagArgs(ctx, flags)
+	err := flags.Parse(args)
+	extraArgs := flags.Args() // remaining non-parsed args
+	if err != nil {
+		return flags, extraArgs, curlerrors.NewCurlError2(curlerrors.ERROR_INVALID_ARGS, "Invalid args/failed to parse flags", err)
+	}
+	return flags, extraArgs, nil
 }
