@@ -11,17 +11,30 @@ import (
 	curlerrors "github.com/cdwiegand/go-curling/errors"
 )
 
-func (ctx *CurlContext) BuildClient() (client *http.Client) {
+func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
-	if ctx.IgnoreBadCerts {
-		customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: ctx.IgnoreBadCerts}
+
+	var cerr *curlerrors.CurlError
+	customTransport.TLSClientConfig.RootCAs, cerr = ctx.BuildRootCAsPool()
+	if cerr != nil {
+		return nil, cerr
 	}
 
-	client = &http.Client{
+	clientCerts, cerr := ctx.BuildClientCertificates()
+	if cerr != nil {
+		return nil, cerr
+	}
+	if len(clientCerts) > 0 {
+		customTransport.TLSClientConfig.Certificates = append(customTransport.TLSClientConfig.Certificates, clientCerts...)
+	}
+
+	customTransport.DisableCompression = ctx.DisableCompression
+
+	return &http.Client{
 		Transport: customTransport,
 		Jar:       ctx.Jar,
-	}
-	return
+	}, nil
 }
 
 func (ctx *CurlContext) BuildRequest(index int) (request *http.Request, err *curlerrors.CurlError) {

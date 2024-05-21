@@ -26,6 +26,13 @@ type CurlContext struct {
 	UserAuth                           string
 	IsSilent                           bool
 	HeadOnly                           bool
+	DisableCompression                 bool
+	DoNotUseHostCertificateAuthorities bool
+	CaCertFile                         []string
+	CaCertPath                         string
+	ClientCertFile                     string
+	ClientCertKeyFile                  string
+	ClientCertKeyPassword              string
 	IncludeHeadersInMainOutput         bool
 	ShowErrorEvenIfSilent              bool
 	Referer                            string

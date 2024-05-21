@@ -39,6 +39,13 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	flags.BoolVar(&ctx.JunkSessionCookies, "junk-session-cookies", false, "Does not store session cookies in cookie jar")
 	flags.StringArrayVarP(&ctx.Upload_File, "upload-file", "T", []string{}, "Raw file(s) to PUT (default) to the url(s) given, not encoded, sets mime type to detected mime type for extension unless specified as a header")
 	flags.StringArrayVarP(&ctx.Headers, "header", "H", []string{}, "Header(s) to append to request")
+	flags.BoolVar(&ctx.DoNotUseHostCertificateAuthorities, "no-ca-native", false, "Do not use the host's Certificate Authorities (turns off --ca-native)")
+	flags.StringArrayVar(&ctx.CaCertFile, "ca-cert", nil, "Specifies PEM file(s) containing certs for trusted Certificate Authorities")
+	flags.StringVar(&ctx.CaCertPath, "ca-path", "", "Specifies a directory container PEM files containing certs for trusted Certificate Authorities")
+	flags.StringVarP(&ctx.ClientCertFile, "cert", "E", "", "Client certificate (cert or cert + key) to use for authentication to server, with :password after if key is encrypted")
+	flags.StringVar(&ctx.ClientCertKeyFile, "key", "", "Client certificate key to use for authentication to server, with :password after if encrypted")
+	flags.StringVar(&ctx.ClientCertKeyPassword, "key-password", "", "Password to decrypt client certificate key") // NOT UPSTREAM curl!
+	flags.BoolVar(&ctx.DisableCompression, "no-compressed", false, "Disables compression")
 }
 
 func ParseFlags(args []string, ctx *curl.CurlContext) (*pflag.FlagSet, []string, *curlerrors.CurlError) {

@@ -1,5 +1,6 @@
 package context
 
+const ERROR_SSL_SYSTEM_FAILURE = -5
 const ERROR_STATUS_CODE_FAILURE = -6
 const ERROR_NO_RESPONSE = -7
 const ERROR_INVALID_URL = -8

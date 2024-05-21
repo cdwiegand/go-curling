@@ -58,7 +58,11 @@ func main() {
 		return
 	}
 
-	client := ctx.BuildClient()
+	client, cerr := ctx.BuildClient()
+	if cerr != nil {
+		handleErrorAndExit(cerr, ctx)
+		return
+	}
 
 	var lastErrorCode *curlerrors.CurlError
 	for index := range ctx.Urls {
