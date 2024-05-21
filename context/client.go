@@ -36,14 +36,12 @@ func (ctx *CurlContext) BuildRequest(index int) (request *http.Request, err *cur
 		if err != nil {
 			return nil, err // just stop now
 		}
-	}
-	if len(ctx.Form_Multipart) > 0 {
+	} else if ctx.HasFormArgs() {
 		upload, err = ctx.HandleFormMultipart()
 		if err != nil {
 			return nil, err // just stop now
 		}
-	}
-	if ctx.HasDataArgs() {
+	} else if ctx.HasDataArgs() {
 		upload, err = ctx.HandleDataArgs()
 		if err != nil {
 			return nil, err // just stop now

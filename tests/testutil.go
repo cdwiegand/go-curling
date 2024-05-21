@@ -15,9 +15,9 @@ import (
 type TestRun struct {
 	OutputFiles           []string
 	InputFiles            []string
-	SuccessHandler        func(map[string]interface{})
-	SuccessHandlerIndexed func(map[string]interface{}, int)
-	ErrorHandler          func(*curlerrors.CurlError)
+	SuccessHandler        func(map[string]interface{}, *TestRun)
+	SuccessHandlerIndexed func(map[string]interface{}, int, *TestRun)
+	ErrorHandler          func(*curlerrors.CurlError, *TestRun)
 }
 
 func GenericErrorHandler(t *testing.T, err *curlerrors.CurlError) {
@@ -66,38 +66,42 @@ func BuildFileList(count int, outputDir string, ext string) (files []string) {
 }
 
 func RunTestRun(ctx *curl.CurlContext, run *TestRun) {
-	client := ctx.BuildClient()
+	client, cerr := ctx.BuildClient()
+	if cerr != nil {
+		run.ErrorHandler(cerr, run)
+		return
+	}
 
 	for index := range ctx.Urls {
 		request, cerr := ctx.BuildRequest(index)
 		if cerr != nil {
-			run.ErrorHandler(cerr)
+			run.ErrorHandler(cerr, run)
 			return
 		}
 
 		resp, cerr := ctx.Do(client, request)
 		if cerr != nil {
-			run.ErrorHandler(cerr)
+			run.ErrorHandler(cerr, run)
 			return
 		}
 
 		cerr = ctx.ProcessResponse(index, resp, request)
 		if cerr != nil {
-			run.ErrorHandler(cerr)
+			run.ErrorHandler(cerr, run)
 			return
 		}
 
 		json, err := ReadJson(run.OutputFiles[index])
 		if err != nil {
-			run.ErrorHandler(curlerrors.NewCurlError2(curlerrors.ERROR_STATUS_CODE_FAILURE, "Failed to parse JSON", err))
+			run.ErrorHandler(curlerrors.NewCurlError2(curlerrors.ERROR_STATUS_CODE_FAILURE, "Failed to parse JSON", err), run)
 			return
 		}
 
 		if run.SuccessHandler != nil {
-			run.SuccessHandler(json)
+			run.SuccessHandler(json, run)
 		}
 		if run.SuccessHandlerIndexed != nil {
-			run.SuccessHandlerIndexed(json, index)
+			run.SuccessHandlerIndexed(json, index, run)
 		}
 	}
 }

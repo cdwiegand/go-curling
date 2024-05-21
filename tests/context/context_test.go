@@ -18,11 +18,11 @@ func Test_GetWithQuery_CurlContext(t *testing.T) {
 			Urls:   []string{"https://httpbin.org/get?test=one"},
 			Output: testrun.OutputFiles,
 		}
-	}, func(json map[string]interface{}) {
+	}, func(json map[string]interface{}, testrun *curltest.TestRun) {
 		curltest.VerifyJson(t, json, "args")
 		args := json["args"].(map[string]any)
 		curltest.VerifyGot(t, "one", args["test"])
-	}, func(err *curlerrors.CurlError) {
+	}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 		curltest.GenericErrorHandler(t, err)
 	})
 }
@@ -34,11 +34,11 @@ func Test_Headers_CurlContext(t *testing.T) {
 			Headers: []string{"X-Hello: World"},
 			Output:  testrun.OutputFiles,
 		}
-	}, func(json map[string]interface{}) {
+	}, func(json map[string]interface{}, testrun *curltest.TestRun) {
 		curltest.VerifyJson(t, json, "headers")
 		args := json["headers"].(map[string]interface{})
 		curltest.VerifyGot(t, "World", args["X-Hello"])
-	}, func(err *curlerrors.CurlError) {
+	}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 		curltest.GenericErrorHandler(t, err)
 	})
 }
@@ -51,11 +51,11 @@ func Test_PostWithInlineForm_CurlContext(t *testing.T) {
 			Output:        testrun.OutputFiles,
 			Data_Standard: []string{"test=one"},
 		}
-	}, func(json map[string]interface{}) {
+	}, func(json map[string]interface{}, testrun *curltest.TestRun) {
 		curltest.VerifyJson(t, json, "form")
 		form := json["form"].(map[string]any)
 		curltest.VerifyGot(t, "one", form["test"])
-	}, func(err *curlerrors.CurlError) {
+	}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 		curltest.GenericErrorHandler(t, err)
 	})
 }
@@ -69,11 +69,11 @@ func Test_PostWithFilesystemForm_CurlContext(t *testing.T) {
 			Output:        testrun.OutputFiles,
 			Data_Standard: []string{"test=@" + testrun.InputFiles[0]},
 		}
-	}, func(json map[string]interface{}, index int) {
+	}, func(json map[string]interface{}, index int, testrun *curltest.TestRun) {
 		curltest.VerifyJson(t, json, "form")
 		form := json["form"].(map[string]any)
 		curltest.VerifyGot(t, "one", form["test"])
-	}, func(err *curlerrors.CurlError) {
+	}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 		curltest.GenericErrorHandler(t, err)
 	})
 }
@@ -87,12 +87,12 @@ func Test_PostWithFilesystemBinaryForm_CurlContext(t *testing.T) {
 			Output:      testrun.OutputFiles,
 			Data_Binary: []string{"test=@" + testrun.InputFiles[0]},
 		}
-	}, func(json map[string]interface{}, index int) {
+	}, func(json map[string]interface{}, index int, testrun *curltest.TestRun) {
 		curltest.VerifyJson(t, json, "form")
 		form := json["form"].(map[string]any)
 		curltest.VerifyGot(t, "a", form["test"])
 		curltest.VerifyGot(t, "c", form["b"])
-	}, func(err *curlerrors.CurlError) {
+	}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 		curltest.GenericErrorHandler(t, err)
 	})
 }
@@ -106,11 +106,11 @@ func Test_PostWithFilesystemForm2_CurlContext(t *testing.T) {
 			Output:        testrun.OutputFiles,
 			Data_Standard: []string{"@" + testrun.InputFiles[0]},
 		}
-	}, func(json map[string]interface{}, index int) {
+	}, func(json map[string]interface{}, index int, testrun *curltest.TestRun) {
 		curltest.VerifyJson(t, json, "form")
 		form := json["form"].(map[string]any)
 		curltest.VerifyGot(t, "one", form["test"])
-	}, func(err *curlerrors.CurlError) {
+	}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 		curltest.GenericErrorHandler(t, err)
 	})
 }
@@ -122,11 +122,11 @@ func Test_PostWithMultipartInlineForm_CurlContext(t *testing.T) {
 			Output:         testrun.OutputFiles,
 			Form_Multipart: []string{"test=one"},
 		}
-	}, func(json map[string]interface{}) {
+	}, func(json map[string]interface{}, testrun *curltest.TestRun) {
 		curltest.VerifyJson(t, json, "form")
 		form := json["form"].(map[string]any)
 		curltest.VerifyGot(t, "one", form["test"])
-	}, func(err *curlerrors.CurlError) {
+	}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 		curltest.GenericErrorHandler(t, err)
 	})
 }
@@ -140,11 +140,11 @@ func Test_PostWithMultipartForm_CurlContext(t *testing.T) {
 				Output:         testrun.OutputFiles,
 				Form_Multipart: []string{"test=@" + testrun.InputFiles[0]},
 			}
-		}, func(json map[string]interface{}, index int) {
+		}, func(json map[string]interface{}, index int, testrun *curltest.TestRun) {
 			curltest.VerifyJson(t, json, "files")
 			files := json["files"].(map[string]any)
 			curltest.VerifyGot(t, "one", files["test"])
-		}, func(err *curlerrors.CurlError) {
+		}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 			curltest.GenericErrorHandler(t, err)
 		})
 }
@@ -157,11 +157,11 @@ func Test_PostWithMultipartForm2_CurlContext(t *testing.T) {
 				Output:         testrun.OutputFiles,
 				Form_Multipart: []string{"test=one"},
 			}
-		}, func(json map[string]interface{}) {
+		}, func(json map[string]interface{}, testrun *curltest.TestRun) {
 			curltest.VerifyJson(t, json, "form")
 			form := json["form"].(map[string]any)
 			curltest.VerifyGot(t, "one", form["test"])
-		}, func(err *curlerrors.CurlError) {
+		}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 			curltest.GenericErrorHandler(t, err)
 		})
 }
@@ -175,11 +175,29 @@ func Test_PostWithMultipartForm3_CurlContext(t *testing.T) {
 				Output:         testrun.OutputFiles,
 				Form_Multipart: []string{"test=<" + testrun.InputFiles[0]},
 			}
-		}, func(json map[string]interface{}, index int) {
+		}, func(json map[string]interface{}, index int, testrun *curltest.TestRun) {
 			curltest.VerifyJson(t, json, "form")
 			form := json["form"].(map[string]any)
 			curltest.VerifyGot(t, "one", form["test"])
-		}, func(err *curlerrors.CurlError) {
+		}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
+			curltest.GenericErrorHandler(t, err)
+		})
+}
+func Test_PostWithMultipartFormRaw3_CurlContext(t *testing.T) {
+	RunContextWithTempFile(t, 1, 1,
+		func(testrun *curltest.TestRun) *curl.CurlContext {
+			os.WriteFile(testrun.InputFiles[0], []byte("one"), 0666)
+			return &curl.CurlContext{
+				Urls:              []string{"https://httpbin.org/post"},
+				Method:            "POST",
+				Output:            testrun.OutputFiles,
+				Form_MultipartRaw: []string{"test=<" + testrun.InputFiles[0]},
+			}
+		}, func(json map[string]interface{}, index int, testrun *curltest.TestRun) {
+			curltest.VerifyJson(t, json, "form")
+			form := json["form"].(map[string]any)
+			curltest.VerifyGot(t, "<"+testrun.InputFiles[0], form["test"])
+		}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 			curltest.GenericErrorHandler(t, err)
 		})
 }
@@ -193,9 +211,9 @@ func Test_PostWithMultipartForm4_CurlContext(t *testing.T) {
 				Output:         testrun.OutputFiles,
 				Form_Multipart: []string{"@" + testrun.InputFiles[0]},
 			}
-		}, func(json map[string]interface{}, index int) {
+		}, func(json map[string]interface{}, index int, testrun *curltest.TestRun) {
 			curltest.GenericErrorHandler(t, curlerrors.NewCurlError0("Should not succeed as -F does not support directly pulling a @file reference!"))
-		}, func(err *curlerrors.CurlError) {
+		}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 			// ok, it SHOULD fail, this is not a valid request!
 		})
 }
@@ -209,11 +227,11 @@ func Test_PostWithUpload_filesystemForm_CurlContext(t *testing.T) {
 				Output:      testrun.OutputFiles,
 				Upload_File: testrun.InputFiles,
 			}
-		}, func(json map[string]interface{}, index int) {
+		}, func(json map[string]interface{}, index int, testrun *curltest.TestRun) {
 			curltest.VerifyJson(t, json, "data")
 			data := json["data"].(string)
 			curltest.VerifyGot(t, "test=one", data)
-		}, func(err *curlerrors.CurlError) {
+		}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 			curltest.GenericErrorHandler(t, err)
 		})
 }
@@ -226,11 +244,11 @@ func Test_PutWithUpload_filesystemForm_CurlContext(t *testing.T) {
 				Output:      testrun.OutputFiles,
 				Upload_File: testrun.InputFiles,
 			}
-		}, func(json map[string]interface{}, index int) {
+		}, func(json map[string]interface{}, index int, testrun *curltest.TestRun) {
 			curltest.VerifyJson(t, json, "data")
 			data := json["data"].(string)
 			curltest.VerifyGot(t, "test=one", data)
-		}, func(err *curlerrors.CurlError) {
+		}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 			curltest.GenericErrorHandler(t, err)
 		})
 }
@@ -246,11 +264,11 @@ func Test_PutWithUpload_filesystemFilesForm_CurlContext(t *testing.T) {
 				Output:      testrun.OutputFiles,
 				Upload_File: testrun.InputFiles,
 			}
-		}, func(json map[string]interface{}, index int) {
+		}, func(json map[string]interface{}, index int, testrun *curltest.TestRun) {
 			curltest.VerifyJson(t, json, "data")
 			data := json["data"].(string)
 			curltest.VerifyGot(t, expectedResult[index], data)
-		}, func(err *curlerrors.CurlError) {
+		}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 			curltest.GenericErrorHandler(t, err)
 		})
 }
@@ -261,9 +279,9 @@ func Test_Delete_CurlContext(t *testing.T) {
 			Method: "DELETE",
 			Output: testrun.OutputFiles,
 		}
-	}, func(json map[string]interface{}) {
+	}, func(json map[string]interface{}, testrun *curltest.TestRun) {
 		// no error means success, it's delete, there's no real response other than a success code
-	}, func(err *curlerrors.CurlError) {
+	}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 		curltest.GenericErrorHandler(t, err)
 	})
 }
@@ -274,11 +292,11 @@ func Test_GetWithCookies_CurlContext(t *testing.T) {
 			Output:  testrun.OutputFiles,
 			Cookies: []string{"testcookie2=value2"},
 		}
-	}, func(json map[string]interface{}) {
+	}, func(json map[string]interface{}, testrun *curltest.TestRun) {
 		curltest.VerifyJson(t, json, "cookies")
 		cookies := json["cookies"].(map[string]interface{})
 		curltest.VerifyGot(t, "value2", cookies["testcookie2"])
-	}, func(err *curlerrors.CurlError) {
+	}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 		curltest.GenericErrorHandler(t, err)
 	})
 }
@@ -290,11 +308,11 @@ func Test_CookieRoundTrip_CurlContext(t *testing.T) {
 			Output:    testrun.OutputFiles,
 			CookieJar: cookieFile,
 		}
-	}, func(json map[string]interface{}) {
+	}, func(json map[string]interface{}, testrun *curltest.TestRun) {
 		curltest.VerifyJson(t, json, "cookies")
 		cookies := json["cookies"].(map[string]interface{})
 		curltest.VerifyGot(t, "testvalue", cookies["testcookie"])
-	}, func(err *curlerrors.CurlError) {
+	}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 		curltest.GenericErrorHandler(t, err)
 	})
 
@@ -304,11 +322,11 @@ func Test_CookieRoundTrip_CurlContext(t *testing.T) {
 			Output:    testrun.OutputFiles,
 			CookieJar: cookieFile,
 		}
-	}, func(json map[string]interface{}) {
+	}, func(json map[string]interface{}, testrun *curltest.TestRun) {
 		curltest.VerifyJson(t, json, "cookies")
 		cookies := json["cookies"].(map[string]interface{})
 		curltest.VerifyGot(t, "testvalue", cookies["testcookie"])
-	}, func(err *curlerrors.CurlError) {
+	}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 		curltest.GenericErrorHandler(t, err)
 	})
 }
@@ -324,9 +342,9 @@ func Test_CannotMixDataFormUploadArgs(t *testing.T) {
 				Data_Standard: []string{"test=one"},
 				Upload_File:   testrun.InputFiles,
 			}
-		}, func(json map[string]interface{}, index int) {
+		}, func(json map[string]interface{}, index int, testrun *curltest.TestRun) {
 			curltest.GenericErrorHandler(t, curlerrors.NewCurlError0("Should not succeed if -d and -T are mixed!"))
-		}, func(err *curlerrors.CurlError) {
+		}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 			// ok, it SHOULD fail, this is not a valid request!
 		})
 	RunContextWithTempFile(t, 1, 1,
@@ -339,9 +357,9 @@ func Test_CannotMixDataFormUploadArgs(t *testing.T) {
 				Data_Standard:  []string{"test=one"},
 				Form_Multipart: testrun.InputFiles,
 			}
-		}, func(json map[string]interface{}, index int) {
+		}, func(json map[string]interface{}, index int, testrun *curltest.TestRun) {
 			curltest.GenericErrorHandler(t, curlerrors.NewCurlError0("Should not succeed if -d and -F are mixed!"))
-		}, func(err *curlerrors.CurlError) {
+		}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 			// ok, it SHOULD fail, this is not a valid request!
 		})
 	RunContextWithTempFile(t, 1, 2,
@@ -355,9 +373,9 @@ func Test_CannotMixDataFormUploadArgs(t *testing.T) {
 				Upload_File:    []string{testrun.InputFiles[0]},
 				Form_Multipart: []string{testrun.InputFiles[1]},
 			}
-		}, func(json map[string]interface{}, index int) {
+		}, func(json map[string]interface{}, index int, testrun *curltest.TestRun) {
 			curltest.GenericErrorHandler(t, curlerrors.NewCurlError0("Should not succeed if -F and -T are mixed!"))
-		}, func(err *curlerrors.CurlError) {
+		}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 			// ok, it SHOULD fail, this is not a valid request!
 		})
 }
@@ -381,7 +399,7 @@ func Test_All4DataArgs(t *testing.T) {
 				Data_RawAsIs:  []string{"testdataraw=@" + testrun.InputFiles[5]}, // actual file not used, just want to make sure the "@" comes across properly
 			}
 		},
-		func(json map[string]interface{}, index int) {
+		func(json map[string]interface{}, index int, testrun *curltest.TestRun) {
 			curltest.VerifyJson(t, json, "form")
 			form := json["form"].(map[string]any)
 			curltest.VerifyGot(t, "a", form["testdatastandard"])
@@ -396,7 +414,7 @@ func Test_All4DataArgs(t *testing.T) {
 			if !strings.HasPrefix(testdataraw, "@") {
 				t.Errorf("testdataraw was %q - should start with @ - it should be the EXACT value, no @file support", testdataraw)
 			}
-		}, func(err *curlerrors.CurlError) {
+		}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
 			curltest.GenericErrorHandler(t, err)
 		})
 }

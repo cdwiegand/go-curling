@@ -47,42 +47,37 @@ func (ctx *CurlContext) HandleUploadRawFile(index int) (*UploadInformation, *cur
 // -F name=@file (reads file as a FILE attachment)
 // -F name=<file (reads file as the VALUE of a form field)
 // -F name=value
+// --form-string name=anyvalue (anyvalue can start with @ or <, they are ignored)
 // Note: no -F @file support
 func (ctx *CurlContext) HandleFormMultipart() (*UploadInformation, *curlerrors.CurlError) {
 	ret := &UploadInformation{}
 	bodyBuf := &bytes.Buffer{}
 	writer := multipart.NewWriter(bodyBuf)
+
 	for _, item := range ctx.Form_Multipart {
-		_, idxEqual, _ := identifyDataReferenceIndexes(item)
+		idxEqual := strings.Index(item, "=")
 		if idxEqual > -1 {
 			splits := strings.SplitN(item, "=", 2)
 			name := splits[0]
 			value := splits[1]
-			if strings.HasPrefix(value, "@") {
-				filename := strings.TrimPrefix(value, "@")
-				valueRaw, err := os.ReadFile(filename)
-				if err != nil {
-					return nil, curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
-				}
-				shortname := path.Base(filename)
-				part, _ := writer.CreateFormFile(name, shortname)
-				part.Write(valueRaw)
-			} else if strings.HasPrefix(value, "<") {
-				filename := strings.TrimPrefix(value, "<")
-				valueRaw, err := os.ReadFile(filename)
-				if err != nil {
-					return nil, curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
-				}
-				part, _ := writer.CreateFormField(name)
-				part.Write(valueRaw)
-			} else {
-				part, _ := writer.CreateFormField(name)
-				part.Write([]byte(value))
-			}
+			handleFormArg(name, value, writer, false)
 		} else {
 			return nil, curlerrors.NewCurlError1(curlerrors.ERROR_INVALID_ARGS, "I need a name=value or name=@file/path/here")
 		}
 	}
+
+	for _, item := range ctx.Form_MultipartRaw {
+		idxEqual := strings.Index(item, "=")
+		if idxEqual > -1 {
+			splits := strings.SplitN(item, "=", 2)
+			name := splits[0]
+			value := splits[1]
+			handleFormArg(name, value, writer, true)
+		} else {
+			return nil, curlerrors.NewCurlError1(curlerrors.ERROR_INVALID_ARGS, "I need a name=value")
+		}
+	}
+
 	writer.Close()
 
 	ret.Body = bodyBuf
@@ -90,6 +85,30 @@ func (ctx *CurlContext) HandleFormMultipart() (*UploadInformation, *curlerrors.C
 	ret.RecommendedMethod = "POST"
 
 	return ret, nil
+}
+func handleFormArg(name string, value string, writer *multipart.Writer, ignoreValuePrefixes bool) *curlerrors.CurlError {
+	if !ignoreValuePrefixes && strings.HasPrefix(value, "@") {
+		filename := strings.TrimPrefix(value, "@")
+		valueRaw, err := os.ReadFile(filename)
+		if err != nil {
+			return curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
+		}
+		shortname := path.Base(filename)
+		part, _ := writer.CreateFormFile(name, shortname)
+		part.Write(valueRaw)
+	} else if !ignoreValuePrefixes && strings.HasPrefix(value, "<") {
+		filename := strings.TrimPrefix(value, "<")
+		valueRaw, err := os.ReadFile(filename)
+		if err != nil {
+			return curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
+		}
+		part, _ := writer.CreateFormField(name)
+		part.Write(valueRaw)
+	} else {
+		part, _ := writer.CreateFormField(name)
+		part.Write([]byte(value))
+	}
+	return nil
 }
 
 // --data* args
@@ -127,6 +146,9 @@ func (ctx *CurlContext) HandleDataArgs() (*UploadInformation, *curlerrors.CurlEr
 }
 func (ctx *CurlContext) HasDataArgs() bool {
 	return len(ctx.Data_Binary) > 0 || len(ctx.Data_Encoded) > 0 || len(ctx.Data_RawAsIs) > 0 || len(ctx.Data_Standard) > 0
+}
+func (ctx *CurlContext) HasFormArgs() bool {
+	return len(ctx.Form_Multipart) > 0 || len(ctx.Form_MultipartRaw) > 0
 }
 
 // -d / --data: includes already-URL-encoded values (or lines from a file, or a file as already-URL-encoded content with newlines stripped)

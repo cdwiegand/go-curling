@@ -10,7 +10,7 @@ import (
 
 // FIXME: make a test context? and then clean up these almost-duplicate functions
 
-func RunContext(t *testing.T, contextBuilder func(testrun *curltest.TestRun) (ctx *curl.CurlContext), successHandler func(map[string]interface{}), errorHandler func(*curlerrors.CurlError)) {
+func RunContext(t *testing.T, contextBuilder func(testrun *curltest.TestRun) (ctx *curl.CurlContext), successHandler func(map[string]interface{}, *curltest.TestRun), errorHandler func(*curlerrors.CurlError, *curltest.TestRun)) {
 	tmpDir := t.TempDir()
 	outputFile := curltest.BuildFileList(1, tmpDir, "out")
 	tempFile := curltest.BuildFileList(0, tmpDir, "tmp")
@@ -24,7 +24,7 @@ func RunContext(t *testing.T, contextBuilder func(testrun *curltest.TestRun) (ct
 	runContext_Real(run, contextBuilder)
 }
 
-func RunContextWithTempFile(t *testing.T, countOutputFiles int, countTempFiles int, contextBuilder func(testrun *curltest.TestRun) (ctx *curl.CurlContext), successHandler func(map[string]interface{}, int), errorHandler func(*curlerrors.CurlError)) {
+func RunContextWithTempFile(t *testing.T, countOutputFiles int, countTempFiles int, contextBuilder func(testrun *curltest.TestRun) (ctx *curl.CurlContext), successHandler func(map[string]interface{}, int, *curltest.TestRun), errorHandler func(*curlerrors.CurlError, *curltest.TestRun)) {
 	tmpDir := t.TempDir()
 
 	outputFile := curltest.BuildFileList(countOutputFiles, tmpDir, "out")
@@ -44,7 +44,7 @@ func runContext_Real(run *curltest.TestRun, contextBuilder func(testrun *curltes
 
 	cerr := ctx.SetupContextForRun([]string{})
 	if cerr != nil {
-		run.ErrorHandler(cerr)
+		run.ErrorHandler(cerr, run)
 		return
 	}
 

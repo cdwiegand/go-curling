@@ -13,34 +13,35 @@ import (
 const DEFAULT_OUTPUT = "stdout"
 
 type CurlContext struct {
-	Version                    bool
-	Verbose                    bool
-	Method                     string
-	SilentFail                 bool
-	FailEarly                  bool
-	Output                     []string
-	HeaderOutput               []string
-	UserAgent                  string
-	Urls                       []string
-	IgnoreBadCerts             bool
-	UserAuth                   string
-	IsSilent                   bool
-	HeadOnly                   bool
-	IncludeHeadersInMainOutput bool
-	ShowErrorEvenIfSilent      bool
-	Referer                    string
-	ErrorOutput                string
-	Cookies                    []string
-	CookieJar                  string
-	JunkSessionCookies         bool
-	Jar                        *cookieJar.Jar
-	Upload_File                []string
-	Data_Standard              []string
-	Data_Encoded               []string
-	Data_RawAsIs               []string
-	Data_Binary                []string
-	Form_Multipart             []string
-	Headers                    []string
+	Version                            bool
+	Verbose                            bool
+	Method                             string
+	SilentFail                         bool
+	FailEarly                          bool
+	Output                             []string
+	HeaderOutput                       []string
+	UserAgent                          string
+	Urls                               []string
+	IgnoreBadCerts                     bool
+	UserAuth                           string
+	IsSilent                           bool
+	HeadOnly                           bool
+	IncludeHeadersInMainOutput         bool
+	ShowErrorEvenIfSilent              bool
+	Referer                            string
+	ErrorOutput                        string
+	Cookies                            []string
+	CookieJar                          string
+	JunkSessionCookies                 bool
+	Jar                                *cookieJar.Jar
+	Upload_File                        []string
+	Data_Standard                      []string
+	Data_Encoded                       []string
+	Data_RawAsIs                       []string
+	Data_Binary                        []string
+	Form_Multipart                     []string
+	Form_MultipartRaw                  []string
+	Headers                            []string
 }
 
 func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlError {

@@ -9,7 +9,7 @@ import (
 	curltest "github.com/cdwiegand/go-curling/tests"
 )
 
-func RunCmdLine(t *testing.T, countOutputFiles int, countTempFiles int, argsBuilder func(*curltest.TestRun) []string, successHandler func(map[string]interface{}), errorHandler func(*curlerrors.CurlError)) {
+func RunCmdLine(t *testing.T, countOutputFiles int, countTempFiles int, argsBuilder func(*curltest.TestRun) []string, successHandler func(map[string]interface{}, *curltest.TestRun), errorHandler func(*curlerrors.CurlError, *curltest.TestRun)) {
 	tmpDir := t.TempDir()
 
 	outputFile := curltest.BuildFileList(countOutputFiles, tmpDir, "out")
@@ -23,7 +23,7 @@ func RunCmdLine(t *testing.T, countOutputFiles int, countTempFiles int, argsBuil
 	}
 	runCmdLine_Real(run, argsBuilder)
 }
-func RunCmdLineIndexed(t *testing.T, countOutputFiles int, countTempFiles int, argsBuilder func(*curltest.TestRun) []string, successHandler func(map[string]interface{}, int), errorHandler func(*curlerrors.CurlError)) {
+func RunCmdLineIndexed(t *testing.T, countOutputFiles int, countTempFiles int, argsBuilder func(*curltest.TestRun) []string, successHandler func(map[string]interface{}, int, *curltest.TestRun), errorHandler func(*curlerrors.CurlError, *curltest.TestRun)) {
 	tmpDir := t.TempDir()
 
 	outputFile := curltest.BuildFileList(countOutputFiles, tmpDir, "out")
@@ -43,13 +43,13 @@ func runCmdLine_Real(run *curltest.TestRun, argsBuilder func(*curltest.TestRun) 
 	ctx := &curl.CurlContext{}
 	_, extraArgs, cerr := curlcli.ParseFlags(args, ctx)
 	if cerr != nil {
-		run.ErrorHandler(cerr)
+		run.ErrorHandler(cerr, run)
 		return
 	}
 
 	cerr = ctx.SetupContextForRun(extraArgs)
 	if cerr != nil {
-		run.ErrorHandler(cerr)
+		run.ErrorHandler(cerr, run)
 		return
 	}
 
