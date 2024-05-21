@@ -1,6 +1,22 @@
 # Purpose
 This program was designed to replace the curl that is no longer shipped with Microsoft's dotnet core docker containers. Removing that kept breaking all of my upgraded containers, and I really wanted curl back for healthchecks without having to `apt install` and `apt clean` and cleaning out the cache. So I built a simple curl that handled the healthcheck calls I was doing. I have since started expanding it to meet more needs of the [original curl](https://curl.se/), while remaining golang based.
 
+# Examples
+
+```
+curl -D - -o - https://google.com
+curl -D /dev/null -o /dev/null https://google.not.valid.haha
+curl https://google.com
+curl https://my.local.test:443 -k
+```
+
+# Using in a Dockerfile
+```
+COPY --from=cdwiegand/go-curling:latest /bin/curl /usr/bin/curl
+# OR COPY --from=ghcr.io/cdwiegand/go-curling:latest /bin/curl /usr/bin/curl
+HEALTHCHECK CMD curl -s http://localhost:80
+```
+
 # Differences between original curl and go-curling
 This program only attempts to support HTTP/HTTPS protocols - others like IMAP, SMTP, RTMP, etc. are not supported.
 
@@ -21,7 +37,7 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 | `-o` | `--output` | `-` (/dev/stdout) | `-` or file-path(s) | Where to output results |
 | `-D` | `--dump-header` | `/dev/null` | `-` or file-path(s) | Where to output headers separately |
 |      | `--stderr` | `/dev/stderr` | `-` or file-path | Log errors to this replacement for stderr |
-| `-A` | `--user-agent` | `go-curling/1` | string | User-agent to use |
+| `-A` | `--user-agent` | `go-curling/XXXXX` | string | User-agent to use (XXXXX is a version/build identifier) |
 | `-k` | `--insecure` | (false) | flag | Ignore invalid SSL certificates |
 | `-f` | `--fail` | (false) | flag | If fail do not emit contents just return fail exit code |
 | `-s` | `--silent` | (false) | flag | Do not emit any output (unless overridden with `show-error`) |
@@ -45,8 +61,9 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 
 * `--version` is intended to return a build date/version header, and is not intended for parsing by programs. It will return immediately and not process any requests.
 * `--method` allows you to specify an explicit HTTP verb, some parameters will also inherently override it (ex: `-I`/`--head` will set it to HEAD).
-* `--output {file path or -}` redirects the content output to another location than stdout.
+* `--head` will suppress content output and will emit the headers to the "content" output location. This means that `--head -o /tmp/1` is the same as `-D /tmp/1 -o /dev/null`.
 * `--dump-header` will emit the HTTP response headers (if set to `-`, they will appear BEFORE the content output).
+* `--output {file path or -}` redirects the content output to another location than stdout.
 * `--stderr {file path or -}` will emit errors to the given location.
 * `--user-agent {value}` will send the given user agent via HTTP instead of the default.
 * `--insecure` will ignore invalid HTTPS certificates.
@@ -54,8 +71,7 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 * `--silent` will not emit any output regardless of success or failure.
 * `--show-error` will show error info even if silent/fail modes on.
 * `--include` will include emit returned headers and output to the output path (effectively `-D - -o -`, or `-D file1 -o file1`).
-* `--head` will suppress content output and will emit the headers to the "content" output location. This means that `--head -o /tmp/1` is the same as `-D /tmp/1 -o /dev/null`.
-* `--user` allows you to specify a `username:password` style authentication header.
+* `--user` allows you to specify a Basic HTTP `username:password` style authentication header.
 * `--referer` specifies the `Referer` HTTP header.
 * `--header` (repeatable) allows you to specify any valid HTTP header, and will override defaults set by other parameters (such as `-d` or `--form`).
 * `--cookie` (repeatable) allows you to specify an HTTP cookie (as a string, or as a file containing the cookie definition.
@@ -78,22 +94,6 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 * The `--upload` parameter will by default use `PUT` as the HTTP verb and if possible detect the MIME type using the file extension, or use `application/octet-stream` as the content type (unless you specify a `Content-Type` header via `-H`):
 * * Using `--upload value` will send the contents of the `value` file as the entire body.
 
-# Examples
-
-```
-curl -D - -o - https://google.com
-curl -D /dev/null -o /dev/null https://google.not.valid.haha
-curl https://google.com
-curl https://my.local.test:443 -k
-```
-
-# Using in a Dockerfile
-```
-COPY --from=cdwiegand/go-curling:latest /bin/curl /usr/bin/curl
-# OR COPY --from=ghcr.io/cdwiegand/go-curling:latest /bin/curl /usr/bin/curl
-HEALTHCHECK CMD curl -s http://localhost:80
-```
-
 # Error Codes
 - 6: Response present, but a status code >= 400 (e.g. failing) was returned
 - 7: No response, but an error was thrown
@@ -103,9 +103,6 @@ HEALTHCHECK CMD curl -s http://localhost:80
 - 11: Unable to write to stdout/stderr
 - 249: No such host or invalid scheme
 - 250: Invalid/missing url
-
-# Command Line 
-All command line options *NO LONGER* needs to be specified before the URL - this was a limitation of golang's `flag` module, but I have upgraded to using `spf13/pflag` so this is no longer a problem.
 
 # Tests
 Tests are now present in the code - run `go test -v ./...` to run them.
