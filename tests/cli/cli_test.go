@@ -189,6 +189,43 @@ func Test_PostWithMultipartForm4_CmdLine(t *testing.T) {
 			// ok, it SHOULD fail, this is not a valid request!
 		})
 }
+func Test_PostJsonInclude_CmdLine(t *testing.T) {
+	RunCmdLine(t, 1, 1,
+		func(testrun *curltest.TestRun) []string {
+			os.WriteFile(testrun.InputFiles[0], []byte("{\"test\": \"one\"}"), 0666)
+			return []string{"https://httpbin.org/post", "-X", "POST", "--json", "@" + testrun.InputFiles[0], "-o", testrun.OutputFiles[0]}
+		}, func(json map[string]interface{}, testrun *curltest.TestRun) {
+			curltest.VerifyJson(t, json, "form")
+			data := json["data"].(string)
+			curltest.VerifyGot(t, "@"+testrun.InputFiles[0], data)
+		}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
+			curltest.GenericErrorHandler(t, err)
+		})
+}
+func Test_PostJsonSingleQuotes_CmdLine(t *testing.T) {
+	RunCmdLine(t, 1, 0,
+		func(testrun *curltest.TestRun) []string {
+			return []string{"https://httpbin.org/post", "-X", "POST", "--json", "{ 'test': 'one' }", "-o", testrun.OutputFiles[0]}
+		}, func(json map[string]interface{}, testrun *curltest.TestRun) {
+			curltest.VerifyJson(t, json, "form")
+			data := json["data"].(string)
+			curltest.VerifyGot(t, "{ 'test': 'one' }", data)
+		}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
+			curltest.GenericErrorHandler(t, err)
+		})
+}
+func Test_PostJsonDoubleQuotes_CmdLine(t *testing.T) {
+	RunCmdLine(t, 1, 0,
+		func(testrun *curltest.TestRun) []string {
+			return []string{"https://httpbin.org/post", "-X", "POST", "--json", "{ \"test\": \"one\" }", "-o", testrun.OutputFiles[0]}
+		}, func(json map[string]interface{}, testrun *curltest.TestRun) {
+			curltest.VerifyJson(t, json, "form")
+			data := json["data"].(string)
+			curltest.VerifyGot(t, "{ \"test\": \"one\" }", data)
+		}, func(err *curlerrors.CurlError, testrun *curltest.TestRun) {
+			curltest.GenericErrorHandler(t, err)
+		})
+}
 
 func Test_PostWithUpload_filesystemForm_CmdLine(t *testing.T) {
 	RunCmdLine(t, 1, 1,

@@ -117,7 +117,7 @@ func (ctx *CurlContext) convertPrivateKeyBlock(pem pem.Block) (crypto.PrivateKey
 				}
 				return decrypted, nil
 			default:
-				return nil, fmt.Errorf("Unable to decrypt %s %s private key", pem.Type, keyType)
+				return nil, fmt.Errorf("unable to decrypt %s %s private key", pem.Type, keyType)
 			}
 		}
 		return key, err

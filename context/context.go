@@ -46,6 +46,7 @@ type CurlContext struct {
 	Data_Encoded                       []string
 	Data_RawAsIs                       []string
 	Data_Binary                        []string
+	Data_Json                          []string
 	Form_Multipart                     []string
 	Form_MultipartRaw                  []string
 	Headers                            []string
@@ -135,6 +136,17 @@ func (ctx *CurlContext) SetMethodIfNotSet(httpMethod string) {
 	if ctx.Method == "" {
 		ctx.Method = httpMethod
 	}
+}
+func (ctx *CurlContext) SetHeaderIfNotSet(headerName string, headerValue string) {
+	if len(ctx.Headers) > 0 {
+		for _, h := range ctx.Headers {
+			parts := strings.SplitN(h, ":", 2)
+			if len(parts) == 2 && strings.EqualFold(parts[0], headerName) {
+				return
+			}
+		}
+	}
+	ctx.Headers = append(ctx.Headers, headerName+": "+headerValue) // subsequent ones will override
 }
 
 func (ctx *CurlContext) getNextOutputsFromContext(index int) (headerOutput string, contentOutput string) {

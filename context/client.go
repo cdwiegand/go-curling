@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -40,11 +41,11 @@ func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 func (ctx *CurlContext) BuildRequest(index int) (request *http.Request, err *curlerrors.CurlError) {
 	url := ctx.Urls[index]
 
-	var upload *UploadInformation
+	var upload io.Reader
 	// must call these BEFORE using ctx.method (as they may set it to POST/PUT if not yet explicitly set)
 	// fixme: add support for mixing them (upload file vs all others?)
 	// fixme: add --data-binary support
-	if len(ctx.Upload_File) > 0 {
+	if len(ctx.Upload_File) > index {
 		upload, err = ctx.HandleUploadRawFile(index)
 		if err != nil {
 			return nil, err // just stop now
@@ -61,31 +62,20 @@ func (ctx *CurlContext) BuildRequest(index int) (request *http.Request, err *cur
 		}
 	}
 
-	if upload == nil {
-		upload = &UploadInformation{} // null-safe default please
-	}
-
 	// this should be after all other changes to method!
-	if upload.RecommendedMethod != "" {
-		ctx.SetMethodIfNotSet(upload.RecommendedMethod)
-	} else {
-		ctx.SetMethodIfNotSet("GET")
-	}
+	ctx.SetMethodIfNotSet("GET")
 
 	// now build
-	request, _ = http.NewRequest(strings.ToUpper(ctx.Method), url, upload.Body)
+	request, _ = http.NewRequest(strings.ToUpper(ctx.Method), url, upload)
 
 	// custom headers ALWAYS come first (we use `set` below to override when needed)
 	if len(ctx.Headers) > 0 {
 		for _, h := range ctx.Headers {
 			parts := strings.SplitN(h, ":", 2)
 			if len(parts) == 2 {
-				request.Header.Add(parts[0], parts[1])
+				request.Header.Set(parts[0], parts[1])
 			}
 		}
-	}
-	if upload.RecommendedMimeType != "" && request.Header.Get("Content-Type") == "" {
-		request.Header.Set("Content-Type", upload.RecommendedMimeType)
 	}
 	if ctx.UserAgent != "" {
 		request.Header.Set("User-Agent", ctx.UserAgent)

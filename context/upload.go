@@ -14,16 +14,9 @@ import (
 	curlerrors "github.com/cdwiegand/go-curling/errors"
 )
 
-type UploadInformation struct {
-	Body                io.Reader
-	RecommendedMimeType string
-	RecommendedMethod   string
-}
-
 // -T
-func (ctx *CurlContext) HandleUploadRawFile(index int) (*UploadInformation, *curlerrors.CurlError) {
+func (ctx *CurlContext) HandleUploadRawFile(index int) (io.Reader, *curlerrors.CurlError) {
 	// DOES use index - sends a file per URL
-	ret := &UploadInformation{}
 	if len(ctx.Upload_File) > index {
 		filename := ctx.Upload_File[index]
 		f, err := os.ReadFile(filename)
@@ -37,10 +30,13 @@ func (ctx *CurlContext) HandleUploadRawFile(index int) (*UploadInformation, *cur
 		bodyBuf := &bytes.Buffer{}
 		bodyBuf.Write(f)
 
-		ret.Body = io.Reader(bodyBuf)
-		ret.RecommendedMethod = "PUT"
+		ctx.SetMethodIfNotSet("PUT")
+		if mimeType != "" {
+			ctx.SetHeaderIfNotSet("Content-Type", mimeType)
+		}
+		return io.Reader(bodyBuf), nil
 	}
-	return ret, nil
+	return nil, nil
 }
 
 // -F
@@ -49,8 +45,7 @@ func (ctx *CurlContext) HandleUploadRawFile(index int) (*UploadInformation, *cur
 // -F name=value
 // --form-string name=anyvalue (anyvalue can start with @ or <, they are ignored)
 // Note: no -F @file support
-func (ctx *CurlContext) HandleFormMultipart() (*UploadInformation, *curlerrors.CurlError) {
-	ret := &UploadInformation{}
+func (ctx *CurlContext) HandleFormMultipart() (io.Reader, *curlerrors.CurlError) {
 	bodyBuf := &bytes.Buffer{}
 	writer := multipart.NewWriter(bodyBuf)
 
@@ -60,7 +55,7 @@ func (ctx *CurlContext) HandleFormMultipart() (*UploadInformation, *curlerrors.C
 			splits := strings.SplitN(item, "=", 2)
 			name := splits[0]
 			value := splits[1]
-			handleFormArg(name, value, writer, false)
+			handleFormArg(name, value, writer)
 		} else {
 			return nil, curlerrors.NewCurlError1(curlerrors.ERROR_INVALID_ARGS, "I need a name=value or name=@file/path/here")
 		}
@@ -72,7 +67,8 @@ func (ctx *CurlContext) HandleFormMultipart() (*UploadInformation, *curlerrors.C
 			splits := strings.SplitN(item, "=", 2)
 			name := splits[0]
 			value := splits[1]
-			handleFormArg(name, value, writer, true)
+			part, _ := writer.CreateFormField(name)
+			part.Write([]byte(value))
 		} else {
 			return nil, curlerrors.NewCurlError1(curlerrors.ERROR_INVALID_ARGS, "I need a name=value")
 		}
@@ -80,14 +76,13 @@ func (ctx *CurlContext) HandleFormMultipart() (*UploadInformation, *curlerrors.C
 
 	writer.Close()
 
-	ret.Body = bodyBuf
-	ret.RecommendedMimeType = "multipart/form-data; boundary=" + writer.Boundary()
-	ret.RecommendedMethod = "POST"
-
-	return ret, nil
+	ctx.SetMethodIfNotSet("POST")
+	ctx.SetHeaderIfNotSet("Content-Type", "multipart/form-data; boundary="+writer.Boundary())
+	return bodyBuf, nil
 }
-func handleFormArg(name string, value string, writer *multipart.Writer, ignoreValuePrefixes bool) *curlerrors.CurlError {
-	if !ignoreValuePrefixes && strings.HasPrefix(value, "@") {
+
+func handleFormArg(name string, value string, writer *multipart.Writer) *curlerrors.CurlError {
+	if strings.HasPrefix(value, "@") {
 		filename := strings.TrimPrefix(value, "@")
 		valueRaw, err := os.ReadFile(filename)
 		if err != nil {
@@ -96,7 +91,7 @@ func handleFormArg(name string, value string, writer *multipart.Writer, ignoreVa
 		shortname := path.Base(filename)
 		part, _ := writer.CreateFormFile(name, shortname)
 		part.Write(valueRaw)
-	} else if !ignoreValuePrefixes && strings.HasPrefix(value, "<") {
+	} else if strings.HasPrefix(value, "<") {
 		filename := strings.TrimPrefix(value, "<")
 		valueRaw, err := os.ReadFile(filename)
 		if err != nil {
@@ -116,36 +111,45 @@ func handleFormArg(name string, value string, writer *multipart.Writer, ignoreVa
 // -d name=@file
 // -d @file (lines of name=value)
 // -d (--data), --data-raw, --data-binary, --data-urlencoded
-func (ctx *CurlContext) HandleDataArgs() (*UploadInformation, *curlerrors.CurlError) {
-	ret := &UploadInformation{}
-
+func (ctx *CurlContext) HandleDataArgs() (io.Reader, *curlerrors.CurlError) {
 	bodyBuf := &bytes.Buffer{}
-	err1 := handleDataArgs_Standard(ctx, bodyBuf)
-	err2 := handleDataArgs_Encoded(ctx, bodyBuf)
-	err3 := handleDataArgs_Binary(ctx, bodyBuf)
-	err4 := handleDataArgs_RawAsIs(ctx, bodyBuf)
+	if len(ctx.Data_Json) > 0 {
+		err0 := handleDataArgs_Json(ctx, bodyBuf)
+		if err0 != nil {
+			return nil, err0
+		}
+		ctx.SetHeaderIfNotSet("Accept", "application/json")
+		ctx.SetHeaderIfNotSet("Content-Type", "application/json")
+		ctx.SetMethodIfNotSet("POST")
+		return io.Reader(bodyBuf), nil
+	}
 
+	err1 := handleDataArgs_Standard(ctx, bodyBuf)
 	if err1 != nil {
 		return nil, err1
 	}
+
+	err2 := handleDataArgs_Encoded(ctx, bodyBuf)
 	if err2 != nil {
 		return nil, err2
 	}
+
+	err3 := handleDataArgs_Binary(ctx, bodyBuf)
 	if err3 != nil {
 		return nil, err3
 	}
+
+	err4 := handleDataArgs_RawAsIs(ctx, bodyBuf)
 	if err4 != nil {
 		return nil, err4
 	}
 
-	ret.Body = io.Reader(bodyBuf)
-	ret.RecommendedMimeType = "application/x-www-form-urlencoded"
-	ret.RecommendedMethod = "POST"
-
-	return ret, nil
+	ctx.SetMethodIfNotSet("POST")
+	ctx.SetHeaderIfNotSet("Content-Type", "application/x-www-form-urlencoded")
+	return io.Reader(bodyBuf), nil
 }
 func (ctx *CurlContext) HasDataArgs() bool {
-	return len(ctx.Data_Binary) > 0 || len(ctx.Data_Encoded) > 0 || len(ctx.Data_RawAsIs) > 0 || len(ctx.Data_Standard) > 0
+	return len(ctx.Data_Binary) > 0 || len(ctx.Data_Encoded) > 0 || len(ctx.Data_RawAsIs) > 0 || len(ctx.Data_Standard) > 0 || len(ctx.Data_Json) > 0
 }
 func (ctx *CurlContext) HasFormArgs() bool {
 	return len(ctx.Form_Multipart) > 0 || len(ctx.Form_MultipartRaw) > 0
@@ -232,6 +236,16 @@ func handleDataArgs_Encoded(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors
 	}
 	if len(formBody) > 0 {
 		appendDataString(bodyBuf, formBody.Encode())
+	}
+	return nil
+}
+
+// --json: send JSON to server as input (mutually incompatible with other --data-* parameters)
+// --json '{ "name": "John Doe" }'
+// --json @file (raw JSON)
+func handleDataArgs_Json(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.CurlError {
+	for _, item := range ctx.Data_Json {
+		appendDataString(bodyBuf, item)
 	}
 	return nil
 }
