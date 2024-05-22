@@ -27,7 +27,7 @@ func (ctx *CurlContext) EmitResponseToOutputs(index int, resp *http.Response, re
 		}
 	}
 	headerBody = appendStrings(headerBody, sepBody, DumpResponseHeaders(resp, ctx.Verbose))
-	headerOutput, contentOutput := ctx.getNextOutputsFromContext(index)
+	headerOutput, contentOutput := ctx.GetNextOutputsFromContext(index)
 
 	if ctx.HeadOnly {
 		WriteToFileBytes(headerOutput, headerBody)

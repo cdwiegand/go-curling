@@ -149,7 +149,7 @@ func (ctx *CurlContext) SetHeaderIfNotSet(headerName string, headerValue string)
 	ctx.Headers = append(ctx.Headers, headerName+": "+headerValue) // subsequent ones will override
 }
 
-func (ctx *CurlContext) getNextOutputsFromContext(index int) (headerOutput string, contentOutput string) {
+func (ctx *CurlContext) GetNextOutputsFromContext(index int) (headerOutput string, contentOutput string) {
 	if len(ctx.Output) > index {
 		contentOutput = ctx.Output[index]
 	} else {
