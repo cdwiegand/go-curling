@@ -47,6 +47,7 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	flags.StringVar(&ctx.ClientCertKeyFile, "key", "", "Client certificate key to use for authentication to server, with :password after if encrypted")
 	flags.StringVar(&ctx.ClientCertKeyPassword, "key-password", "", "Password to decrypt client certificate key") // NOT UPSTREAM curl!
 	flags.BoolVar(&ctx.DisableCompression, "no-compressed", false, "Disables compression")
+	flags.BoolVarP(&ctx.FollowRedirects, "location", "L", false, "Follow redirects (3xx response Location headers)")
 }
 
 func ParseFlags(args []string, ctx *curl.CurlContext) (*pflag.FlagSet, []string, *curlerrors.CurlError) {

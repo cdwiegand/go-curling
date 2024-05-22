@@ -27,6 +27,7 @@ type CurlContext struct {
 	IsSilent                           bool
 	HeadOnly                           bool
 	DisableCompression                 bool
+	FollowRedirects                    bool
 	DoNotUseHostCertificateAuthorities bool
 	CaCertFile                         []string
 	CaCertPath                         string

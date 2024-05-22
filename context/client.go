@@ -35,6 +35,13 @@ func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 	return &http.Client{
 		Transport: customTransport,
 		Jar:       ctx.Jar,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if !ctx.FollowRedirects {
+				return http.ErrUseLastResponse
+			}
+			// this is really the wrong way to do this, we should handle the redirect OURSELVES so we can emit the headers like curl does FIXME
+			return nil
+		},
 	}, nil
 }
 
@@ -84,6 +91,13 @@ func (ctx *CurlContext) BuildRequest(index int) (request *http.Request, err *cur
 	}
 	if ctx.Referer != "" {
 		request.Header.Set("Referer", ctx.Referer)
+	}
+	if ctx.DisableCompression {
+		request.Header.Del("Accept-Encoding")
+	}
+	if request.Header.Get("Accept") == "" {
+		// curl default, so matching
+		request.Header.Set("Accept", "*/*")
 	}
 	if ctx.Cookies != nil {
 		for _, cookie := range ctx.Cookies {

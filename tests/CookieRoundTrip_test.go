@@ -12,9 +12,10 @@ func Test_CookieRoundTrip_CurlContext(t *testing.T) {
 	testRun := BuildTestRun(t)
 	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
-			Urls:      []string{"https://httpbin.org/cookies/set/testcookie/testvalue"},
-			Output:    testrun.EnsureAtLeastOneOutputFiles(),
-			CookieJar: cookieFile,
+			Urls:            []string{"https://httpbin.org/cookies/set/testcookie/testvalue"},
+			Output:          testrun.EnsureAtLeastOneOutputFiles(),
+			CookieJar:       cookieFile,
+			FollowRedirects: true,
 		}
 	}
 	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
@@ -27,9 +28,10 @@ func Test_CookieRoundTrip_CurlContext(t *testing.T) {
 	testRun = BuildTestRun(t)
 	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
-			Urls:      []string{"https://httpbin.org/cookies"},
-			Output:    testrun.EnsureAtLeastOneOutputFiles(),
-			CookieJar: cookieFile,
+			Urls:            []string{"https://httpbin.org/cookies"},
+			Output:          testrun.EnsureAtLeastOneOutputFiles(),
+			CookieJar:       cookieFile,
+			FollowRedirects: true,
 		}
 	}
 	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
@@ -41,9 +43,17 @@ func Test_CookieRoundTrip_CurlContext(t *testing.T) {
 }
 func Test_CookieRoundTrip_CmdLine(t *testing.T) {
 	cookieFile := filepath.Join(t.TempDir(), "cookies.dat")
+	cookie_curlFile := filepath.Join(t.TempDir(), "cookies_curl.dat")
+
 	testRun := BuildTestRun(t)
+	testRun.GetOneOutputFile() // so we can use one output file
 	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
-		return []string{"https://httpbin.org/cookies/set/testcookie/testvalue", "-c", cookieFile, "-o", testrun.GetOneOutputFile()}
+		// adding -L so we act like curl and follow the redirect
+		return []string{"https://httpbin.org/cookies/set/testcookie/testvalue", "-L", "-c", cookieFile, "-o", testrun.ListOutputFiles[0]}
+	}
+	testRun.CmdLineBuilderCurl = func(testrun *TestRun) []string {
+		// adding -L so we act like curl and follow the redirect
+		return []string{"https://httpbin.org/cookies/set/testcookie/testvalue", "-L", "-c", cookie_curlFile, "-o", testrun.ListOutputFiles[0]}
 	}
 	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
 		VerifyJson(t, json, "cookies")
@@ -53,8 +63,12 @@ func Test_CookieRoundTrip_CmdLine(t *testing.T) {
 	testRun.Run()
 
 	testRun = BuildTestRun(t)
+	testRun.GetOneOutputFile() // so we can use one output file
 	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
-		return []string{"https://httpbin.org/cookies", "-c", cookieFile, "-o", testrun.GetOneOutputFile()}
+		return []string{"https://httpbin.org/cookies", "-L", "-c", cookieFile, "-o", testrun.ListOutputFiles[0]}
+	}
+	testRun.CmdLineBuilderCurl = func(testrun *TestRun) []string {
+		return []string{"https://httpbin.org/cookies", "-L", "-c", cookie_curlFile, "-o", testrun.ListOutputFiles[0]}
 	}
 	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
 		VerifyJson(t, json, "cookies")
