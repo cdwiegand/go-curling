@@ -1,3 +1,6 @@
+![Tests](https://github.com/cdwiegand/go-curling/actions/workflows/tests.yml/badge.svg)
+![Docker](https://github.com/cdwiegand/go-curling/actions/workflows/docker.yml/badge.svg)
+
 # Purpose
 This program was designed to replace the curl that is no longer shipped with Microsoft's dotnet core docker containers. Removing that kept breaking all of my upgraded containers, and I really wanted curl back for healthchecks without having to `apt install` and `apt clean` and cleaning out the cache. So I built a simple curl that handled the healthcheck calls I was doing. I have since started expanding it to meet more needs of the [original curl](https://curl.se/), while remaining golang based.
 
