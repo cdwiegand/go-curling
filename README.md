@@ -112,3 +112,7 @@ Tests are now present in the code - run `go test -v ./...` to run them.
 
 # License
 go-curling is licensed under the [MIT License](./LICENSE). Previously it was licensed under the LGPL - as I am the sole author prior to this change, I approve the change.
+
+# Credits
+
+Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.html), as well as to [@emacampolo](https://github.com/emacampolo) for a great JSON comparator class, [@ericbsantana](https://github.com/ericbsantana) for [gurl](https://github.com/ericbsantana/gurl) that inspired me to do more with a simple project, and everyone else who has posted golang code on the web for the rest of us to learn from!
