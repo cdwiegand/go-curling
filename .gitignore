@@ -4,6 +4,7 @@
 *.dll
 *.so
 *.dylib
+go-curling
 
 # Test binary, built with `go test -c`
 *.test
