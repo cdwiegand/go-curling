@@ -50,7 +50,7 @@ func (ctx *CurlContext) BuildClientCertificates() ([]tls.Certificate, *curlerror
 		var keyErr error
 		var cert tls.Certificate
 		for _, h := range pemBlocks {
-			cert.PrivateKey, keyErr = ctx.convertPrivateKeyBlock(h)
+			cert.PrivateKey, keyErr = convertPrivateKeyBlock(h, ctx.ClientCertKeyPassword)
 			if keyErr != nil && ctx.FailEarly {
 				return nil, curlerrors.NewCurlError2(curlerrors.ERROR_SSL_SYSTEM_FAILURE, "Unable to decrypt private key", keyErr)
 			}
@@ -103,7 +103,7 @@ func (ctx *CurlContext) BuildRootCAsPool() (*x509.CertPool, *curlerrors.CurlErro
 	return pool, nil
 }
 
-func (ctx *CurlContext) convertPrivateKeyBlock(pem pem.Block) (crypto.PrivateKey, error) {
+func convertPrivateKeyBlock(pem pem.Block, ClientCertKeyPassword string) (crypto.PrivateKey, error) {
 	if key, err := x509.ParsePKCS1PrivateKey(pem.Bytes); err == nil {
 		return key, err
 	}
@@ -111,7 +111,7 @@ func (ctx *CurlContext) convertPrivateKeyBlock(pem pem.Block) (crypto.PrivateKey
 		if strings.Contains(pem.Type, "ENCRYPTED") {
 			switch keyType := key.(type) {
 			case *rsa.PrivateKey, *ecdsa.PrivateKey:
-				decrypted, _, err := pkcs8.ParsePrivateKey(pem.Bytes, []byte(ctx.ClientCertKeyPassword))
+				decrypted, _, err := pkcs8.ParsePrivateKey(pem.Bytes, []byte(ClientCertKeyPassword))
 				if err != nil {
 					return nil, err
 				}

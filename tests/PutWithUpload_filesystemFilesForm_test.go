@@ -20,11 +20,7 @@ func Test_PutWithUpload_filesystemFilesForm_CurlContext(t *testing.T) {
 			Upload_File: testrun.ListInputFiles,
 		}
 	}
-	testRun.SuccessHandlerIndexed = func(json map[string]interface{}, index int, testrun *TestRun) {
-		VerifyJson(t, json, "data")
-		data := json["data"].(string)
-		VerifyGot(t, expectedResult[index], data)
-	}
+	testRun.SuccessHandlerIndexed = helper_PutWithUpload_filesystemFilesForm_success
 	testRun.Run()
 }
 func Test_PutWithUpload_filesystemFilesForm_CmdLine(t *testing.T) {
@@ -35,9 +31,13 @@ func Test_PutWithUpload_filesystemFilesForm_CmdLine(t *testing.T) {
 		os.WriteFile(testrun.GetNextInputFile(), []byte(expectedResult[1]), 0666)
 		return []string{"https://httpbin.org/put", "-T", testrun.ListInputFiles[0], "https://httpbin.org/put", "-T", testrun.ListInputFiles[1], "-o", testrun.GetOneOutputFile(), "-o", testrun.GetOneOutputFile()}
 	}
-	testRun.SuccessHandlerIndexed = func(json map[string]interface{}, index int, testrun *TestRun) {
-		VerifyJson(t, json, "data")
-		data := json["data"].(string)
-		VerifyGot(t, expectedResult[index], data)
-	}
+	testRun.SuccessHandlerIndexed = helper_PutWithUpload_filesystemFilesForm_success
+	testRun.Run()
+}
+func helper_PutWithUpload_filesystemFilesForm_success(json map[string]interface{}, index int, testrun *TestRun) {
+	t := testrun.Testing
+	expectedResult := []string{"test=one", "test=two"}
+	VerifyJson(t, json, "data")
+	data := json["data"].(string)
+	VerifyGot(t, expectedResult[index], data)
 }

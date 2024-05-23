@@ -18,12 +18,7 @@ func Test_PostWithFilesystemBinaryForm_CurlContext(t *testing.T) {
 			Data_Binary: []string{"test=@" + testrun.ListInputFiles[0]},
 		}
 	}
-	testRun.SuccessHandlerIndexed = func(json map[string]interface{}, index int, testrun *TestRun) {
-		VerifyJson(t, json, "form")
-		form := json["form"].(map[string]any)
-		VerifyGot(t, "a", form["test"])
-		VerifyGot(t, "c", form["b"])
-	}
+	testRun.SuccessHandler = helper_PostWithFilesystemBinaryForm_success
 	testRun.Run()
 }
 func Test_PostWithFilesystemBinaryForm_CmdLine(t *testing.T) {
@@ -32,11 +27,13 @@ func Test_PostWithFilesystemBinaryForm_CmdLine(t *testing.T) {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("a&b=c"), 0666)
 		return []string{"https://httpbin.org/post", "-X", "POST", "--data-binary", "test=@" + testrun.ListInputFiles[0], "-o", testrun.GetOneOutputFile()}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "form")
-		form := json["form"].(map[string]any)
-		VerifyGot(t, "a", form["test"])
-		VerifyGot(t, "c", form["b"])
-	}
+	testRun.SuccessHandler = helper_PostWithFilesystemBinaryForm_success
 	testRun.Run()
+}
+func helper_PostWithFilesystemBinaryForm_success(json map[string]interface{}, testrun *TestRun) {
+	t := testrun.Testing
+	VerifyJson(t, json, "form")
+	form := json["form"].(map[string]any)
+	VerifyGot(t, "a", form["test"])
+	VerifyGot(t, "c", form["b"])
 }

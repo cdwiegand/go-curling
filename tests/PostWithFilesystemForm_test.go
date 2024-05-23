@@ -18,11 +18,7 @@ func Test_PostWithFilesystemForm_CurlContext(t *testing.T) {
 			Data_Standard: []string{"test=@" + testrun.ListInputFiles[0]},
 		}
 	}
-	testRun.SuccessHandlerIndexed = func(json map[string]interface{}, index int, testrun *TestRun) {
-		VerifyJson(t, json, "form")
-		form := json["form"].(map[string]any)
-		VerifyGot(t, "one", form["test"])
-	}
+	testRun.SuccessHandler = helper_PostWithFilesystemForm_success
 	testRun.Run()
 }
 func Test_PostWithFilesystemForm_CmdLine(t *testing.T) {
@@ -31,10 +27,12 @@ func Test_PostWithFilesystemForm_CmdLine(t *testing.T) {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("one"), 0666)
 		return []string{"https://httpbin.org/post", "-X", "POST", "-d", "test=@" + testrun.ListInputFiles[0], "-o", testrun.GetOneOutputFile()}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "form")
-		form := json["form"].(map[string]any)
-		VerifyGot(t, "one", form["test"])
-	}
+	testRun.SuccessHandler = helper_PostWithFilesystemForm_success
 	testRun.Run()
+}
+func helper_PostWithFilesystemForm_success(json map[string]interface{}, testrun *TestRun) {
+	t := testrun.Testing
+	VerifyJson(t, json, "form")
+	form := json["form"].(map[string]any)
+	VerifyGot(t, "one", form["test"])
 }

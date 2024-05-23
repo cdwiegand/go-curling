@@ -29,10 +29,10 @@ import (
 )
 
 func main() {
-	ctx := &curl.CurlContext{}
+	ctx := new(curl.CurlContext)
 	var cerr *curlerrors.CurlError
 
-	_, extraArgs, cerr := curlcli.ParseFlags(os.Args[1:], ctx)
+	_, nonFlagArgs, cerr := curlcli.ParseFlags(os.Args[1:], ctx)
 	if cerr != nil {
 		handleErrorAndExit(cerr, ctx)
 		return
@@ -44,7 +44,7 @@ func main() {
 		return
 	}
 
-	cerr = ctx.SetupContextForRun(extraArgs)
+	cerr = ctx.SetupContextForRun(nonFlagArgs)
 	if cerr != nil {
 		handleErrorAndExit(cerr, ctx)
 		return
@@ -73,7 +73,7 @@ func main() {
 				handleError(cerr, ctx)
 			}
 		} else {
-			resp, cerr := ctx.Do(client, request)
+			resp, cerr := ctx.GetCompleteResponse(client, request)
 			if cerr != nil {
 				lastErrorCode = cerr
 				handleError(cerr, ctx)
@@ -86,8 +86,9 @@ func main() {
 			}
 		}
 	}
+
 	if lastErrorCode != nil {
-		handleErrorAndExit(lastErrorCode, ctx)
+		os.Exit(lastErrorCode.ExitCode)
 	}
 }
 
@@ -114,7 +115,7 @@ func handleError(err *curlerrors.CurlError, ctx *curl.CurlContext) {
 	}
 
 	if (!ctx.IsSilent && !ctx.SilentFail) || !ctx.ShowErrorEvenIfSilent {
-		curl.WriteToFileBytes(ctx.ErrorOutput, []byte(entry)) // this feels... bad practice - can we move this to some kind of helper or something??
+		ctx.WriteToFileBytes(ctx.ErrorOutput, []byte(entry)) // this feels... bad practice - can we move this to some kind of helper or something??
 	}
 
 	if err.ExitCode != 0 && ctx.FailEarly {

@@ -30,10 +30,11 @@ type TestRun struct {
 	TempDir                  string
 	Testing                  *testing.T
 	DoNotTestAgainstCurl     bool
+	Responses                *curl.CurlResponses
 }
 
-func BuildTestRun(t *testing.T) TestRun {
-	ret := TestRun{}
+func BuildTestRun(t *testing.T) *TestRun {
+	ret := new(TestRun)
 	ret.TempDir = t.TempDir()
 	ret.Testing = t
 
@@ -106,7 +107,7 @@ func VerifyJson(t *testing.T, json map[string]interface{}, arg string) bool {
 	return true
 }
 
-func readJson(file string) (res map[string]interface{}, raw string, err error) {
+func ReadJson(file string) (res map[string]interface{}, raw string, err error) {
 	jsonFile, err := os.Open(file)
 	if err != nil {
 		return nil, "", err
@@ -126,15 +127,15 @@ func readJson(file string) (res map[string]interface{}, raw string, err error) {
 func (run *TestRun) Run() {
 	var ctx *curl.CurlContext
 	var args []string
-	var extraArgs []string
+	var nonFlagArgs []string
 	var cerr *curlerrors.CurlError
 
 	if run.ContextBuilder != nil {
 		ctx = run.ContextBuilder(run)
 	} else if run.CmdLineBuilder != nil {
-		ctx = &curl.CurlContext{}
+		ctx = new(curl.CurlContext)
 		args = run.CmdLineBuilder(run)
-		_, extraArgs, cerr = curlcli.ParseFlags(args, ctx)
+		_, nonFlagArgs, cerr = curlcli.ParseFlags(args, ctx)
 		if cerr != nil {
 			run.ErrorHandler(cerr, run)
 			return
@@ -143,7 +144,7 @@ func (run *TestRun) Run() {
 		run.Testing.Fatal("Forgot to add ContextBuilder or CmdLineBuilder to test!")
 	}
 
-	cerr = ctx.SetupContextForRun(extraArgs)
+	cerr = ctx.SetupContextForRun(nonFlagArgs)
 	if cerr != nil {
 		run.ErrorHandler(cerr, run)
 		return
@@ -162,7 +163,8 @@ func (run *TestRun) Run() {
 			return
 		}
 
-		resp, cerr := ctx.Do(client, request)
+		resp, cerr := ctx.GetCompleteResponse(client, request)
+		run.Responses = resp
 		if cerr != nil {
 			run.ErrorHandler(cerr, run)
 			return
@@ -179,7 +181,7 @@ func (run *TestRun) Run() {
 			return
 		}
 
-		jsonObj, rawJson, err := readJson(run.ListOutputFiles[index])
+		jsonObj, rawJson, err := ReadJson(run.ListOutputFiles[index])
 		if err != nil {
 			run.ErrorHandler(curlerrors.NewCurlError2(curlerrors.ERROR_STATUS_CODE_FAILURE, "Failed to parse JSON", err), run)
 			return
@@ -209,17 +211,19 @@ func (run *TestRun) Run() {
 func CompareCurlCliOutput(run *TestRun, args []string, myJsonObj map[string]interface{}, myJsonRaw string) error {
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		moreargs := append([]string{"-e", "curl"}, args...)
-		cmd = exec.Command("wsl", moreargs...)
+		//moreargs := append([]string{"curl"}, args...)
+		//cmd = exec.Command("wsl", moreargs...)
+		return nil // can't run on windows, wsl curl c:\users\etc.. just munges and creates a weird local file and tests "always" pass... :(
 	} else {
 		cmd = exec.Command("curl", args...)
 	}
+
 	curlerr := cmd.Run()
 	if curlerr != nil {
 		return curlerr
 	}
 
-	curlJsonObj, curlJsonRaw, err := readJson(run.ListOutputFiles[0])
+	curlJsonObj, curlJsonRaw, err := ReadJson(run.ListOutputFiles[0])
 	if err != nil {
 		return err
 	}
@@ -268,12 +272,16 @@ func (run *TestRun) RunAgainstCurlCli() {
 
 	cmd := exec.Command("curl", args...)
 	err := cmd.Run()
+	for _, v := range run.ListOutputFiles {
+		defer os.Remove(v)
+	}
+
 	if err != nil {
 		run.Testing.Fatal(err)
 	}
 
 	for index := range run.ListOutputFiles {
-		json, _, err := readJson(run.ListOutputFiles[index])
+		json, rawJson, err := ReadJson(run.ListOutputFiles[index])
 		if err != nil {
 			run.ErrorHandler(curlerrors.NewCurlError2(curlerrors.ERROR_STATUS_CODE_FAILURE, "Failed to parse JSON", err), run)
 			return
@@ -284,6 +292,9 @@ func (run *TestRun) RunAgainstCurlCli() {
 		}
 		if run.SuccessHandlerIndexed != nil {
 			run.SuccessHandlerIndexed(json, index, run)
+		}
+		if run.SuccessHandlerIndexedRaw != nil {
+			run.SuccessHandlerIndexedRaw(json, rawJson, index, run)
 		}
 	}
 }

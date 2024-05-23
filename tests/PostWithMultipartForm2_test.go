@@ -16,11 +16,7 @@ func Test_PostWithMultipartForm2_CurlContext(t *testing.T) {
 			Form_Multipart: []string{"test=one"},
 		}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "form")
-		form := json["form"].(map[string]any)
-		VerifyGot(t, "one", form["test"])
-	}
+	testRun.SuccessHandler = helper_PostWithMultipartForm2_success
 	testRun.Run()
 }
 func Test_PostWithMultipartForm2_CmdLine(t *testing.T) {
@@ -28,10 +24,12 @@ func Test_PostWithMultipartForm2_CmdLine(t *testing.T) {
 	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
 		return []string{"https://httpbin.org/post", "-X", "POST", "-F", "test=one", "-o", testrun.GetOneOutputFile()}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "form")
-		form := json["form"].(map[string]any)
-		VerifyGot(t, "one", form["test"])
-	}
+	testRun.SuccessHandler = helper_PostWithMultipartForm2_success
 	testRun.Run()
+}
+func helper_PostWithMultipartForm2_success(json map[string]interface{}, testrun *TestRun) {
+	t := testrun.Testing
+	VerifyJson(t, json, "form")
+	form := json["form"].(map[string]any)
+	VerifyGot(t, "one", form["test"])
 }

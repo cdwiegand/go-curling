@@ -16,11 +16,7 @@ func Test_PostWithInlineForm_CurlContext(t *testing.T) {
 			Data_Standard: []string{"test=one"},
 		}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "form")
-		form := json["form"].(map[string]any)
-		VerifyGot(t, "one", form["test"])
-	}
+	testRun.SuccessHandler = helper_PostWithInlineForm_success
 	testRun.Run()
 }
 
@@ -29,10 +25,12 @@ func Test_PostWithInlineForm_CmdLine(t *testing.T) {
 	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
 		return []string{"https://httpbin.org/post", "-X", "POST", "-d", "test=one", "-o", testrun.GetOneOutputFile()}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "form")
-		form := json["form"].(map[string]any)
-		VerifyGot(t, "one", form["test"])
-	}
+	testRun.SuccessHandler = helper_PostWithInlineForm_success
 	testRun.Run()
+}
+func helper_PostWithInlineForm_success(json map[string]interface{}, testrun *TestRun) {
+	t := testrun.Testing
+	VerifyJson(t, json, "form")
+	form := json["form"].(map[string]any)
+	VerifyGot(t, "one", form["test"])
 }

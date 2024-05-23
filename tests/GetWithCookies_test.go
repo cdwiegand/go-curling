@@ -15,11 +15,7 @@ func Test_GetWithCookies_CurlContext(t *testing.T) {
 			Cookies: []string{"testcookie2=value2"},
 		}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "cookies")
-		cookies := json["cookies"].(map[string]interface{})
-		VerifyGot(t, "value2", cookies["testcookie2"])
-	}
+	testRun.SuccessHandler = helper_GetWithCookies_success
 	testRun.Run()
 }
 func Test_GetWithCookies_CmdLine(t *testing.T) {
@@ -27,10 +23,13 @@ func Test_GetWithCookies_CmdLine(t *testing.T) {
 	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
 		return []string{"https://httpbin.org/cookies", "-b", "testcookie2=value2", "-o", testrun.GetOneOutputFile()}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "cookies")
-		cookies := json["cookies"].(map[string]interface{})
-		VerifyGot(t, "value2", cookies["testcookie2"])
-	}
+	testRun.SuccessHandler = helper_GetWithCookies_success
 	testRun.Run()
+}
+func helper_GetWithCookies_success(json map[string]interface{}, testrun *TestRun) {
+	t := testrun.Testing
+
+	VerifyJson(t, json, "cookies")
+	cookies := json["cookies"].(map[string]interface{})
+	VerifyGot(t, "value2", cookies["testcookie2"])
 }

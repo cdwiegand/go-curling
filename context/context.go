@@ -2,7 +2,10 @@ package context
 
 import (
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	curlerrors "github.com/cdwiegand/go-curling/errors"
@@ -10,7 +13,7 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
-const DEFAULT_OUTPUT = "stdout"
+const DEFAULT_OUTPUT = "/dev/stdout"
 
 type CurlContext struct {
 	Version                            bool
@@ -51,6 +54,11 @@ type CurlContext struct {
 	Form_Multipart                     []string
 	Form_MultipartRaw                  []string
 	Headers                            []string
+	filesAlreadyStartedWriting         map[string]*os.File
+}
+
+type CurlOutputWriter interface {
+	WriteToFileBytes(file string, body []byte) error
 }
 
 func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlError {
@@ -60,13 +68,17 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 		ctx.HeaderOutput = ctx.Output // emit headers
 	}
 
-	ctx.UserAgent = strings.ReplaceAll(ctx.UserAgent, "##DE"+"V##", "dev-branch") // split as I want to keep proper date versions unmunged
+	if strings.Contains(ctx.UserAgent, "##DE") {
+		// ok, do the calc
+		ctx.UserAgent = strings.ReplaceAll(ctx.UserAgent, "##DE"+"V##", "dev-branch") // split as I want to keep proper date versions unmunged in source
+	}
 
 	if ctx.SilentFail || ctx.IsSilent {
 		ctx.IsSilent = true   // implied
 		ctx.SilentFail = true // both are the same thing right now, we only emit errors (or content)
 		ctx.Output = []string{}
 	}
+
 	if ctx.HeadOnly {
 		if len(ctx.HeaderOutput) == 0 {
 			ctx.HeaderOutput = []string{"-"}
@@ -78,7 +90,7 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 	if len(ctx.Upload_File) > 0 {
 		countMutuallyExclusiveActions += 1
 	}
-	if len(ctx.Form_Multipart) > 0 {
+	if ctx.HasFormArgs() {
 		countMutuallyExclusiveActions += 1
 	}
 	if ctx.HasDataArgs() {
@@ -88,7 +100,7 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 		countMutuallyExclusiveActions += 1
 	}
 	if countMutuallyExclusiveActions > 1 {
-		return curlerrors.NewCurlError1(curlerrors.ERROR_INVALID_ARGS, "Cannot include more than one option from: -d/--data*, -F/--form, -T/--upload, and -I/--head list")
+		return curlerrors.NewCurlError1(curlerrors.ERROR_INVALID_ARGS, "Cannot include more than one option from: -d/--data*, -F/--form/--form-string, -T/--upload, or -I/--head")
 	}
 
 	urls := append(ctx.Urls, extraArgs...)
@@ -108,14 +120,9 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 				return curlerrors.NewCurlError2(curlerrors.ERROR_INVALID_URL, fmt.Sprintf("Could not parse url: %q", s), err)
 			}
 
-			// FIXME: do we even need these?
-			if u.Scheme == "" {
-				u.Scheme = "http"
-			}
 			if u.Host == "" {
 				u.Host = "localhost"
 			}
-			// FIXME_END
 
 			ctx.Urls = append(ctx.Urls, u.String())
 		}
@@ -130,6 +137,7 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 		return curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, "Unable to create cookie jar", err)
 	}
 	ctx.Jar = jar
+
 	return nil
 }
 
@@ -138,6 +146,7 @@ func (ctx *CurlContext) SetMethodIfNotSet(httpMethod string) {
 		ctx.Method = httpMethod
 	}
 }
+
 func (ctx *CurlContext) SetHeaderIfNotSet(headerName string, headerValue string) {
 	if len(ctx.Headers) > 0 {
 		for _, h := range ctx.Headers {
@@ -152,14 +161,90 @@ func (ctx *CurlContext) SetHeaderIfNotSet(headerName string, headerValue string)
 
 func (ctx *CurlContext) GetNextOutputsFromContext(index int) (headerOutput string, contentOutput string) {
 	if len(ctx.Output) > index {
-		contentOutput = ctx.Output[index]
+		contentOutput = standardizeFileName(ctx.Output[index])
 	} else {
 		contentOutput = DEFAULT_OUTPUT
 	}
 	if len(ctx.HeaderOutput) > index {
-		headerOutput = ctx.HeaderOutput[index]
+		headerOutput = standardizeFileName(ctx.HeaderOutput[index])
 	} else {
 		headerOutput = ""
 	}
 	return
+}
+
+func (ctx *CurlContext) EmitResponseToOutputs(index int, resp *CurlResponses, request *http.Request) {
+	for i := 0; i < len(resp.Responses); i++ {
+		isLast := i == len(resp.Responses)-1
+		ctx.EmitSingleHttpResponseToOutputs(index, resp.Responses[i].HttpResponse, request, !isLast)
+		request = nil
+	}
+}
+
+func (ctx *CurlContext) EmitSingleHttpResponseToOutputs(index int, resp *http.Response, request *http.Request, headersOnly bool) {
+	// emit body
+	var respBody []byte
+	if !headersOnly && resp.Body != nil {
+		defer resp.Body.Close()
+		respBody, _ = io.ReadAll(resp.Body)
+	}
+
+	seperator := []byte("\n\n")
+	headerBody := []byte("")
+	if ctx.Verbose {
+		if request != nil {
+			headerBody = appendStrings(headerBody, seperator, DumpRequestHeaders(request))
+		}
+		if resp.TLS != nil {
+			headerBody = appendStrings(headerBody, seperator, DumpTlsDetails(resp.TLS))
+		}
+	}
+	headerBody = appendStrings(headerBody, seperator, DumpResponseHeaders(resp, ctx.Verbose))
+	headerOutput, contentOutput := ctx.GetNextOutputsFromContext(index)
+
+	if ctx.HeadOnly {
+		ctx.WriteToFileBytes(headerOutput, headerBody)
+	} else if ctx.IncludeHeadersInMainOutput {
+		bytesOut := appendByteArrays(headerBody, seperator, respBody)
+		ctx.WriteToFileBytes(contentOutput, bytesOut) // do all at once
+		if headerOutput != contentOutput && respBody != nil {
+			ctx.WriteToFileBytes(headerOutput, headerBody)
+		}
+	} else if headerOutput == contentOutput {
+		bytesOut := appendByteArrays(headerBody, seperator, respBody)
+		ctx.WriteToFileBytes(contentOutput, bytesOut) // do all at once
+	} else {
+		ctx.WriteToFileBytes(headerOutput, headerBody)
+		if respBody != nil {
+			ctx.WriteToFileBytes(contentOutput, respBody)
+		}
+	}
+}
+
+func appendStrings(resp []byte, sepBody []byte, lines []string) (respOut []byte) {
+	vb := []byte(strings.Join(lines, "\n"))
+	respOut = appendByteArrays(resp, sepBody, vb)
+	return
+}
+
+func appendByteArrays(resp []byte, sepBody []byte, secondBody []byte) (respOut []byte) {
+	if len(resp) > 0 {
+		resp = append(resp, sepBody...)
+	}
+	respOut = append(resp, secondBody...)
+	return
+}
+
+// standardize the filename, so OutputWriter implementations only need /dev/null, /dev/stdout, /dev/stderr, and anything else they can support
+func standardizeFileName(file string) string {
+	if file == "/dev/null" || file == "null" || file == "" {
+		return "/dev/null"
+	}
+	if file == "/dev/stderr" || file == "stderr" {
+		return "/dev/stderr"
+	}
+	if file == "/dev/stdout" || file == "stdout" || file == "-" {
+		return "/dev/stdout"
+	}
+	return file
 }

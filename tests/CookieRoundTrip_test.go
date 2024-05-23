@@ -18,11 +18,7 @@ func Test_CookieRoundTrip_CurlContext(t *testing.T) {
 			FollowRedirects: true,
 		}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "cookies")
-		cookies := json["cookies"].(map[string]interface{})
-		VerifyGot(t, "testvalue", cookies["testcookie"])
-	}
+	testRun.SuccessHandler = helper_CookieRoundTrip_success
 	testRun.Run()
 
 	testRun = BuildTestRun(t)
@@ -34,11 +30,7 @@ func Test_CookieRoundTrip_CurlContext(t *testing.T) {
 			FollowRedirects: true,
 		}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "cookies")
-		cookies := json["cookies"].(map[string]interface{})
-		VerifyGot(t, "testvalue", cookies["testcookie"])
-	}
+	testRun.SuccessHandler = helper_CookieRoundTrip_success
 	testRun.Run()
 }
 func Test_CookieRoundTrip_CmdLine(t *testing.T) {
@@ -55,11 +47,7 @@ func Test_CookieRoundTrip_CmdLine(t *testing.T) {
 		// adding -L so we act like curl and follow the redirect
 		return []string{"https://httpbin.org/cookies/set/testcookie/testvalue", "-L", "-c", cookie_curlFile, "-o", testrun.ListOutputFiles[0]}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "cookies")
-		cookies := json["cookies"].(map[string]interface{})
-		VerifyGot(t, "testvalue", cookies["testcookie"])
-	}
+	testRun.SuccessHandler = helper_CookieRoundTrip_success
 	testRun.Run()
 
 	testRun = BuildTestRun(t)
@@ -70,10 +58,14 @@ func Test_CookieRoundTrip_CmdLine(t *testing.T) {
 	testRun.CmdLineBuilderCurl = func(testrun *TestRun) []string {
 		return []string{"https://httpbin.org/cookies", "-L", "-c", cookie_curlFile, "-o", testrun.ListOutputFiles[0]}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "cookies")
-		cookies := json["cookies"].(map[string]interface{})
-		VerifyGot(t, "testvalue", cookies["testcookie"])
-	}
+	testRun.SuccessHandler = helper_CookieRoundTrip_success
 	testRun.Run()
+}
+
+func helper_CookieRoundTrip_success(json map[string]interface{}, testrun *TestRun) {
+	t := testrun.Testing
+
+	VerifyJson(t, json, "cookies")
+	cookies := json["cookies"].(map[string]interface{})
+	VerifyGot(t, "testvalue", cookies["testcookie"])
 }

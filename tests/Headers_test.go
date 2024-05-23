@@ -15,11 +15,7 @@ func Test_Headers_CurlContext(t *testing.T) {
 			Output:  testrun.EnsureAtLeastOneOutputFiles(),
 		}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "headers")
-		args := json["headers"].(map[string]interface{})
-		VerifyGot(t, "World", args["X-Hello"])
-	}
+	testRun.SuccessHandler = helpers_Headers_success
 	testRun.Run()
 }
 
@@ -28,10 +24,12 @@ func Test_Headers_Cmdline(t *testing.T) {
 	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
 		return []string{"https://httpbin.org/headers", "-H", "X-Hello: World", "-o", testrun.GetOneOutputFile()}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "headers")
-		args := json["headers"].(map[string]interface{})
-		VerifyGot(t, "World", args["X-Hello"])
-	}
+	testRun.SuccessHandler = helpers_Headers_success
 	testRun.Run()
+}
+func helpers_Headers_success(json map[string]interface{}, testrun *TestRun) {
+	t := testrun.Testing
+	VerifyJson(t, json, "headers")
+	args := json["headers"].(map[string]interface{})
+	VerifyGot(t, "World", args["X-Hello"])
 }

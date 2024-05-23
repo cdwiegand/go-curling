@@ -28,22 +28,7 @@ func Test_All4DataArgs_Context(t *testing.T) {
 			Data_RawAsIs:  []string{"testdataraw=@" + testrun.ListInputFiles[5]}, // actual file not used, just want to make sure the "@" comes across properly
 		}
 	}
-	testRun.SuccessHandlerIndexed = func(json map[string]interface{}, index int, testrun *TestRun) {
-		VerifyJson(t, json, "form")
-		form := json["form"].(map[string]any)
-		VerifyGot(t, "a", form["testdatastandard"])
-		VerifyGot(t, "c", form["b1"])
-		VerifyGot(t, "a&b", form["testdataencoded"])
-		VerifyGot(t, "a", form["testdatastandard2"])
-		VerifyGot(t, "c", form["b3"])
-		VerifyGot(t, "a", form["testdatabinary2"])
-		VerifyGot(t, "c", form["b4"])
-		VerifyGot(t, "a&b", form["testdataencoded2"])
-		testdataraw := fmt.Sprintf("%v", form["testdataraw"])
-		if !strings.HasPrefix(testdataraw, "@") {
-			t.Errorf("testdataraw was %q - should start with @ - it should be the EXACT value, no @file support", testdataraw)
-		}
-	}
+	testRun.SuccessHandlerIndexed = helper_All4DataArgs_Success
 	testRun.Run()
 }
 
@@ -68,21 +53,25 @@ func Test_All4DataArgs_CmdLine(t *testing.T) {
 			"-o", testrun.GetOneOutputFile(),
 		}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "form")
-		form := json["form"].(map[string]any)
-		VerifyGot(t, "a", form["testdatastandard"])
-		VerifyGot(t, "c", form["b1"])
-		VerifyGot(t, "a&b", form["testdataencoded"])
-		VerifyGot(t, "a", form["testdatastandard2"])
-		VerifyGot(t, "c", form["b3"])
-		VerifyGot(t, "a", form["testdatabinary2"])
-		VerifyGot(t, "c", form["b4"])
-		VerifyGot(t, "a&b", form["testdataencoded2"])
-		testdataraw := fmt.Sprintf("%v", form["testdataraw"])
-		if !strings.HasPrefix(testdataraw, "@") {
-			t.Errorf("testdataraw was %q - should start with @ - it should be the EXACT value, no @file support", testdataraw)
-		}
-	}
+	testRun.SuccessHandlerIndexed = helper_All4DataArgs_Success
 	testRun.Run()
+}
+
+func helper_All4DataArgs_Success(json map[string]interface{}, index int, testrun *TestRun) {
+	t := testrun.Testing
+
+	VerifyJson(t, json, "form")
+	form := json["form"].(map[string]any)
+	VerifyGot(t, "a", form["testdatastandard"])
+	VerifyGot(t, "c", form["b1"])
+	VerifyGot(t, "a&b", form["testdataencoded"])
+	VerifyGot(t, "a", form["testdatastandard2"])
+	VerifyGot(t, "c", form["b3"])
+	VerifyGot(t, "a", form["testdatabinary2"])
+	VerifyGot(t, "c", form["b4"])
+	VerifyGot(t, "a&b", form["testdataencoded2"])
+	testdataraw := fmt.Sprintf("%v", form["testdataraw"])
+	if !strings.HasPrefix(testdataraw, "@") {
+		t.Errorf("testdataraw was %q - should start with @ - it should be the EXACT value, no @file support", testdataraw)
+	}
 }

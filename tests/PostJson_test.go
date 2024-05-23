@@ -18,11 +18,7 @@ func Test_PostJsonInclude_CurlContext(t *testing.T) {
 			Output:    testrun.EnsureAtLeastOneOutputFiles(),
 		}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "form")
-		data := json["data"].(string)
-		VerifyGot(t, "@"+testrun.ListInputFiles[0], data)
-	}
+	testRun.SuccessHandler = helper_PostJsonInclude_success
 	testRun.Run()
 }
 func Test_PostJsonInclude_CmdLine(t *testing.T) {
@@ -31,11 +27,7 @@ func Test_PostJsonInclude_CmdLine(t *testing.T) {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("{\"test\": \"one\"}"), 0666)
 		return []string{"https://httpbin.org/post", "-X", "POST", "--json", "@" + testrun.ListInputFiles[0], "-o", testrun.GetOneOutputFile()}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		VerifyJson(t, json, "form")
-		data := json["data"].(string)
-		VerifyGot(t, "@"+testrun.ListInputFiles[0], data)
-	}
+	testRun.SuccessHandler = helper_PostJsonInclude_success
 	testRun.Run()
 }
 func Test_PostJsonSingleQuotes_CmdLine(t *testing.T) {
@@ -61,4 +53,10 @@ func Test_PostJsonDoubleQuotes_CmdLine(t *testing.T) {
 		VerifyGot(t, "{ \"test\": \"one\" }", data)
 	}
 	testRun.Run()
+}
+func helper_PostJsonInclude_success(json map[string]interface{}, testrun *TestRun) {
+	t := testrun.Testing
+	VerifyJson(t, json, "form")
+	data := json["data"].(string)
+	VerifyGot(t, "@"+testrun.ListInputFiles[0], data)
 }
