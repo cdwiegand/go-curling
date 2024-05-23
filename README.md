@@ -1,3 +1,6 @@
+![Tests](https://github.com/cdwiegand/go-curling/actions/workflows/tests.yml/badge.svg)
+![Docker](https://github.com/cdwiegand/go-curling/actions/workflows/docker.yml/badge.svg)
+
 # Purpose
 This program was designed to replace the curl that is no longer shipped with Microsoft's dotnet core docker containers. Removing that kept breaking all of my upgraded containers, and I really wanted curl back for healthchecks without having to `apt install` and `apt clean` and cleaning out the cache. So I built a simple curl that handled the healthcheck calls I was doing. I have since started expanding it to meet more needs of the [original curl](https://curl.se/), while remaining golang based.
 
@@ -109,3 +112,7 @@ Tests are now present in the code - run `go test -v ./...` to run them.
 
 # License
 go-curling is licensed under the [MIT License](./LICENSE). Previously it was licensed under the LGPL - as I am the sole author prior to this change, I approve the change.
+
+# Credits
+
+Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.html), as well as to [@emacampolo](https://github.com/emacampolo) for a great JSON comparator class, [@ericbsantana](https://github.com/ericbsantana) for [gurl](https://github.com/ericbsantana/gurl) that inspired me to do more with a simple project, and everyone else who has posted golang code on the web for the rest of us to learn from!
