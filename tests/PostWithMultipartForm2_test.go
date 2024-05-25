@@ -11,8 +11,8 @@ func Test_PostWithMultipartForm2_CurlContext(t *testing.T) {
 	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
 			Urls:           []string{"https://httpbin.org/post"},
-			Method:         "POST",
-			Output:         testrun.EnsureAtLeastOneOutputFiles(),
+			HttpVerb:       "POST",
+			BodyOutput:     testrun.EnsureAtLeastOneOutputFiles(),
 			Form_Multipart: []string{"test=one"},
 		}
 	}

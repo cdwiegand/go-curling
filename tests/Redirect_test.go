@@ -11,7 +11,7 @@ func Test_RedirectTest_CurlContext(t *testing.T) {
 	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
 			Urls:            []string{"https://httpbin.org/redirect-to?url=https://httpbin.org/get%3Ftest%3Done"},
-			Output:          testrun.EnsureAtLeastOneOutputFiles(),
+			BodyOutput:      testrun.EnsureAtLeastOneOutputFiles(),
 			FollowRedirects: true,
 		}
 	}

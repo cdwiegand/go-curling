@@ -20,8 +20,8 @@ func Test_All4DataArgs_Context(t *testing.T) {
 		os.WriteFile(testRun.GetNextInputFile(), []byte("a&b"), 0666)
 		return &curl.CurlContext{
 			Urls:          []string{"https://httpbin.org/post"},
-			Method:        "POST",
-			Output:        testRun.GetOneOutputFiles(),
+			HttpVerb:      "POST",
+			BodyOutput:    testRun.GetOneOutputFiles(),
 			Data_Standard: []string{"@" + testrun.ListInputFiles[0], "testdatastandard2=@" + testrun.ListInputFiles[3]},
 			Data_Binary:   []string{"@" + testrun.ListInputFiles[1], "testdatabinary2=@" + testrun.ListInputFiles[4]},
 			Data_Encoded:  []string{"@" + testrun.ListInputFiles[2], "testdataencoded2=@" + testrun.ListInputFiles[5]},

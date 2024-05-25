@@ -11,8 +11,8 @@ func Test_RawishForm_CurlContext(t *testing.T) {
 	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
 			Urls:          []string{"https://httpbin.org/post"},
-			Output:        testrun.EnsureAtLeastOneOutputFiles(),
-			Method:        "POST",
+			BodyOutput:    testrun.EnsureAtLeastOneOutputFiles(),
+			HttpVerb:      "POST",
 			Data_Standard: []string{"{'name': 'Robert J. Oppenheimer'}"},
 			Headers:       []string{"Content-Type: application/json"},
 		}

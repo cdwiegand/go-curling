@@ -18,10 +18,10 @@ const DEFAULT_OUTPUT = "/dev/stdout"
 type CurlContext struct {
 	Version                            bool
 	Verbose                            bool
-	Method                             string
+	HttpVerb                           string
 	SilentFail                         bool
 	FailEarly                          bool
-	Output                             []string
+	BodyOutput                         []string
 	HeaderOutput                       []string
 	UserAgent                          string
 	Urls                               []string
@@ -65,7 +65,7 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 	// do sanity checks and "fix" some parts left remaining from flag parsing
 
 	if ctx.Verbose && len(ctx.HeaderOutput) == 0 {
-		ctx.HeaderOutput = ctx.Output // emit headers
+		ctx.HeaderOutput = ctx.BodyOutput // emit headers
 	}
 
 	if strings.Contains(ctx.UserAgent, "##DE") {
@@ -76,7 +76,7 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 	if ctx.SilentFail || ctx.IsSilent {
 		ctx.IsSilent = true   // implied
 		ctx.SilentFail = true // both are the same thing right now, we only emit errors (or content)
-		ctx.Output = []string{}
+		ctx.BodyOutput = []string{}
 	}
 
 	if ctx.HeadOnly {
@@ -142,8 +142,8 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 }
 
 func (ctx *CurlContext) SetMethodIfNotSet(httpMethod string) {
-	if ctx.Method == "" {
-		ctx.Method = httpMethod
+	if ctx.HttpVerb == "" {
+		ctx.HttpVerb = httpMethod
 	}
 }
 
@@ -160,8 +160,8 @@ func (ctx *CurlContext) SetHeaderIfNotSet(headerName string, headerValue string)
 }
 
 func (ctx *CurlContext) GetNextOutputsFromContext(index int) (headerOutput string, contentOutput string) {
-	if len(ctx.Output) > index {
-		contentOutput = standardizeFileName(ctx.Output[index])
+	if len(ctx.BodyOutput) > index {
+		contentOutput = standardizeFileName(ctx.BodyOutput[index])
 	} else {
 		contentOutput = DEFAULT_OUTPUT
 	}

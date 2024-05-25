@@ -13,8 +13,8 @@ func Test_PostWithMultipartFormRaw3_CurlContext(t *testing.T) {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("one"), 0666)
 		return &curl.CurlContext{
 			Urls:              []string{"https://httpbin.org/post"},
-			Method:            "POST",
-			Output:            testrun.EnsureAtLeastOneOutputFiles(),
+			HttpVerb:          "POST",
+			BodyOutput:        testrun.EnsureAtLeastOneOutputFiles(),
 			Form_MultipartRaw: []string{"test=<" + testrun.ListInputFiles[0]},
 		}
 	}

@@ -10,8 +10,8 @@ func Test_GetWithQuery_CurlContext(t *testing.T) {
 	testRun := BuildTestRun(t)
 	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
-			Urls:   []string{"https://httpbin.org/get?test=one"},
-			Output: testrun.EnsureAtLeastOneOutputFiles(),
+			Urls:       []string{"https://httpbin.org/get?test=one"},
+			BodyOutput: testrun.EnsureAtLeastOneOutputFiles(),
 		}
 	}
 	testRun.SuccessHandler = helper_GetWithQuery_success

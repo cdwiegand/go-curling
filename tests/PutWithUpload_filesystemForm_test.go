@@ -13,7 +13,7 @@ func Test_PutWithUpload_filesystemForm_CurlContext(t *testing.T) {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=one"), 0666)
 		return &curl.CurlContext{
 			Urls:        []string{"https://httpbin.org/put"},
-			Output:      testrun.EnsureAtLeastOneOutputFiles(),
+			BodyOutput:  testrun.EnsureAtLeastOneOutputFiles(),
 			Upload_File: testrun.ListInputFiles,
 		}
 	}

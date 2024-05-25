@@ -13,8 +13,8 @@ func Test_PostWithFilesystemForm2_CurlContext(t *testing.T) {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=one"), 0666)
 		return &curl.CurlContext{
 			Urls:          []string{"https://httpbin.org/post"},
-			Method:        "POST",
-			Output:        testrun.EnsureAtLeastOneOutputFiles(),
+			HttpVerb:      "POST",
+			BodyOutput:    testrun.EnsureAtLeastOneOutputFiles(),
 			Data_Standard: []string{"@" + testrun.ListInputFiles[0]},
 		}
 	}

@@ -13,8 +13,8 @@ func Test_MultipleUrls_Context(t *testing.T) {
 		testrun.GetOneOutputFile()
 		testrun.GetOneOutputFile()
 		return &curl.CurlContext{
-			Urls:   []string{"https://httpbin.org/get?test=one", "https://httpbin.org/get?test=two"},
-			Output: testrun.EnsureAtLeastOneOutputFiles(),
+			Urls:       []string{"https://httpbin.org/get?test=one", "https://httpbin.org/get?test=two"},
+			BodyOutput: testrun.EnsureAtLeastOneOutputFiles(),
 		}
 	}
 	testRun.SuccessHandlerIndexed = helper_MultipleUrls_success

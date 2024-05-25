@@ -12,10 +12,10 @@ func Test_PostJsonInclude_CurlContext(t *testing.T) {
 	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("{\"test\": \"one\"}"), 0666)
 		return &curl.CurlContext{
-			Method:    "POST",
-			Data_Json: []string{"@" + testrun.ListInputFiles[0]},
-			Urls:      []string{"https://httpbin.org/post"},
-			Output:    testrun.EnsureAtLeastOneOutputFiles(),
+			HttpVerb:   "POST",
+			Data_Json:  []string{"@" + testrun.ListInputFiles[0]},
+			Urls:       []string{"https://httpbin.org/post"},
+			BodyOutput: testrun.EnsureAtLeastOneOutputFiles(),
 		}
 	}
 	testRun.SuccessHandler = helper_PostJsonInclude_success

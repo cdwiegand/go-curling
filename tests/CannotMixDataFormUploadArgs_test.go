@@ -14,8 +14,8 @@ func Test_CannotMixDataFormUploadArgs_Context(t *testing.T) {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=one"), 0666)
 		return &curl.CurlContext{
 			Urls:          []string{"https://httpbin.org/post"},
-			Method:        "POST",
-			Output:        testrun.EnsureAtLeastOneOutputFiles(),
+			HttpVerb:      "POST",
+			BodyOutput:    testrun.EnsureAtLeastOneOutputFiles(),
 			Data_Standard: []string{"test=one"},
 			Upload_File:   testrun.ListInputFiles,
 		}
@@ -33,8 +33,8 @@ func Test_CannotMixDataFormUploadArgs_Context(t *testing.T) {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=one"), 0666)
 		return &curl.CurlContext{
 			Urls:           []string{"https://httpbin.org/post"},
-			Method:         "POST",
-			Output:         testrun.EnsureAtLeastOneOutputFiles(),
+			HttpVerb:       "POST",
+			BodyOutput:     testrun.EnsureAtLeastOneOutputFiles(),
 			Data_Standard:  []string{"test=one"},
 			Form_Multipart: testrun.ListInputFiles,
 		}
@@ -53,8 +53,8 @@ func Test_CannotMixDataFormUploadArgs_Context(t *testing.T) {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=one"), 0666)
 		return &curl.CurlContext{
 			Urls:           []string{"https://httpbin.org/post"},
-			Method:         "POST",
-			Output:         testrun.EnsureAtLeastOneOutputFiles(),
+			HttpVerb:       "POST",
+			BodyOutput:     testrun.EnsureAtLeastOneOutputFiles(),
 			Upload_File:    []string{testrun.ListInputFiles[0]},
 			Form_Multipart: []string{testrun.ListInputFiles[1]},
 		}
