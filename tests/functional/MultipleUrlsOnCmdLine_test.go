@@ -1,9 +1,10 @@
-package tests
+package functionaltests
 
 import (
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
+	curlcommontests "github.com/cdwiegand/go-curling/tests/common"
 )
 
 func Test_MultipleUrls_Context(t *testing.T) {
@@ -33,7 +34,7 @@ func Test_MultipleUrls_CmdLine(t *testing.T) {
 func helper_MultipleUrls_success(json map[string]interface{}, index int, testrun *TestRun) {
 	t := testrun.Testing
 	expectedResult := []string{"one", "two"}
-	VerifyJson(t, json, "args")
+	curlcommontests.VerifyJson(t, json, "args")
 	args := json["args"].(map[string]any)
-	VerifyGot(t, expectedResult[index], args["test"])
+	curlcommontests.VerifyGot(t, expectedResult[index], args["test"])
 }

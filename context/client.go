@@ -14,6 +14,16 @@ import (
 	curlerrors "github.com/cdwiegand/go-curling/errors"
 )
 
+type CurlResponses struct {
+	Responses []*CurlResponse
+	IsError   bool
+}
+type CurlResponse struct {
+	HttpResponse *http.Response
+	Error        error
+	NextUrl      *url.URL
+}
+
 func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
 	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: ctx.IgnoreBadCerts}
@@ -43,27 +53,31 @@ func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 	}, nil
 }
 
-func (ctx *CurlContext) BuildRequest(index int) (request *http.Request, err *curlerrors.CurlError) {
-	url := ctx.Urls[index]
+func (ctx *CurlContext) BuildHttpRequest(url string, index int, submitDataFormsPostContents bool, submitAuthenticationHeaders bool) (request *http.Request, err *curlerrors.CurlError) {
+	if url == "" && index < len(ctx.Urls) {
+		url = ctx.Urls[index]
+	}
 
-	var upload io.Reader
+	var body io.Reader
 	// must call these BEFORE using ctx.method (as they may set it to POST/PUT if not yet explicitly set)
 	// fixme: add support for mixing them (upload file vs all others?)
 	// fixme: add --data-binary support
-	if len(ctx.Upload_File) > index {
-		upload, err = ctx.HandleUploadRawFile(index)
-		if err != nil {
-			return nil, err // just stop now
-		}
-	} else if ctx.HasFormArgs() {
-		upload, err = ctx.HandleFormMultipart()
-		if err != nil {
-			return nil, err // just stop now
-		}
-	} else if ctx.HasDataArgs() {
-		upload, err = ctx.HandleDataArgs()
-		if err != nil {
-			return nil, err // just stop now
+	if submitDataFormsPostContents {
+		if len(ctx.Upload_File) > index {
+			body, err = ctx.HandleUploadRawFile(index)
+			if err != nil {
+				return nil, err // just stop now
+			}
+		} else if ctx.HasFormArgs() {
+			body, err = ctx.HandleFormMultipart()
+			if err != nil {
+				return nil, err // just stop now
+			}
+		} else if ctx.HasDataArgs() {
+			body, err = ctx.HandleDataArgs()
+			if err != nil {
+				return nil, err // just stop now
+			}
 		}
 	}
 
@@ -71,8 +85,21 @@ func (ctx *CurlContext) BuildRequest(index int) (request *http.Request, err *cur
 	ctx.SetMethodIfNotSet("GET")
 
 	// now build
-	request, _ = http.NewRequest(strings.ToUpper(ctx.Method), url, upload)
+	request, _ = http.NewRequest(strings.ToUpper(ctx.HttpVerb), url, body)
 
+	ctx.SetupInitialHeadersOnRequest(request)
+
+	cerr := ctx.SetCookieHeadersOnRequest(request)
+	if cerr != nil {
+		return nil, cerr
+	}
+
+	ctx.SetAuthenticationHeadersOnRequest(request)
+
+	return request, nil
+}
+
+func (ctx *CurlContext) SetupInitialHeadersOnRequest(request *http.Request) {
 	// custom headers ALWAYS come first (we use `set` below to override when needed)
 	if len(ctx.Headers) > 0 {
 		for _, h := range ctx.Headers {
@@ -82,6 +109,12 @@ func (ctx *CurlContext) BuildRequest(index int) (request *http.Request, err *cur
 			}
 		}
 	}
+	if len(ctx.HeadersDict) > 0 {
+		for k, v := range ctx.HeadersDict {
+			request.Header.Set(k, v)
+		}
+	}
+
 	if ctx.UserAgent != "" {
 		request.Header.Set("User-Agent", ctx.UserAgent)
 	} else if request.Header.Get("User-Agent") == "" {
@@ -97,12 +130,15 @@ func (ctx *CurlContext) BuildRequest(index int) (request *http.Request, err *cur
 		// curl default, so matching
 		request.Header.Set("Accept", "*/*")
 	}
+}
+
+func (ctx *CurlContext) SetCookieHeadersOnRequest(request *http.Request) *curlerrors.CurlError {
 	if ctx.Cookies != nil {
 		for _, cookie := range ctx.Cookies {
 			if !strings.Contains(cookie, "=") { // curl does this, so... ugh, wish golang had .Net's System.IO.Path.Exists() in a safe way
 				f, err := os.ReadFile(cookie)
 				if err != nil {
-					return nil, curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", cookie), err)
+					return curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", cookie), err)
 				}
 				request.Header.Add("Cookie", string(f))
 			} else {
@@ -110,6 +146,10 @@ func (ctx *CurlContext) BuildRequest(index int) (request *http.Request, err *cur
 			}
 		}
 	}
+	return nil
+}
+
+func (ctx *CurlContext) SetAuthenticationHeadersOnRequest(request *http.Request) {
 	if ctx.UserAuth != "" {
 		auths := strings.SplitN(ctx.UserAuth, ":", 2) // this way password can contain a :
 		if len(auths) == 1 {
@@ -122,46 +162,55 @@ func (ctx *CurlContext) BuildRequest(index int) (request *http.Request, err *cur
 		request.SetBasicAuth(auths[0], auths[1])
 	}
 
-	return request, nil
+	if request.Header.Get("Authorization") == "" && ctx.OAuth2_BearerToken != "" {
+		request.Header.Set("Authorization", "Bearer "+ctx.OAuth2_BearerToken)
+	}
 }
 
-type CurlResponses struct {
-	Responses []*CurlResponse
-	IsError   bool
-}
-type CurlResponse struct {
-	HttpResponse *http.Response
-	Error        error
-	NextUrl      *url.URL
-}
-
-func (ctx *CurlContext) GetCompleteResponse(client *http.Client, request *http.Request) (*CurlResponses, *curlerrors.CurlError) {
+func (ctx *CurlContext) GetCompleteResponse(index int, client *http.Client, request *http.Request) (*CurlResponses, *curlerrors.CurlError) {
 	respsReal := new(CurlResponses)
 
+	var cerr *curlerrors.CurlError
 	var urls []*http.Request
 	urls = append(urls, request)
-	for i := 0; i < len(urls); i++ {
+	for i := 0; i < len(urls) && (ctx.MaxRedirects <= 0 || i < ctx.MaxRedirects); i++ {
 		r := urls[i]
-		respReal := GetRawResponse(client, r)
+		respReal := GetCurlResponse(client, r)
 		respsReal.Responses = append(respsReal.Responses, respReal)
 		respsReal.IsError = (respReal.HttpResponse == nil || respReal.HttpResponse.StatusCode >= 400)
 
 		if respReal.Error != nil {
 			respsReal.IsError = true
-			cerr := curlerrors.NewCurlError2(curlerrors.ERROR_NO_RESPONSE, fmt.Sprintf("Was unable to query URL %v", request.URL), respReal.Error)
+			cerr = curlerrors.NewCurlError2(curlerrors.ERROR_NO_RESPONSE, fmt.Sprintf("Was unable to query URL %v", request.URL), respReal.Error)
 			return respsReal, cerr
 		}
 
-		if ctx.FollowRedirects && respReal.NextUrl != nil {
-			request.URL = respReal.NextUrl
-			urls = append(urls, request)
+		if ctx.FollowRedirects && respReal.NextUrl != nil &&
+			respReal.HttpResponse.StatusCode >= 300 && respReal.HttpResponse.StatusCode <= 399 {
+			var newReq *http.Request
+			retainData := true
+
+			if request.Method == "POST" {
+				retainData = (respReal.HttpResponse.StatusCode == 301 && ctx.Allow301Post) ||
+					(respReal.HttpResponse.StatusCode == 302 && ctx.Allow302Post) ||
+					(respReal.HttpResponse.StatusCode == 303 && ctx.Allow303Post)
+			}
+			newReq, cerr = ctx.BuildHttpRequest(respReal.NextUrl.String(), index, retainData, ctx.RedirectsKeepAuthenticationHeaders)
+			if cerr != nil {
+				return respsReal, cerr
+			}
+
+			if !retainData {
+				newReq.Method = "GET"
+			}
+			urls = append(urls, newReq)
 		}
 	}
 
 	return respsReal, nil
 }
 
-func GetRawResponse(client *http.Client, request *http.Request) *CurlResponse {
+func GetCurlResponse(client *http.Client, request *http.Request) *CurlResponse {
 	resp, err := client.Do(request)
 
 	respReal := new(CurlResponse)
@@ -184,7 +233,7 @@ func GetRawResponse(client *http.Client, request *http.Request) *CurlResponse {
 	return respReal
 }
 
-func (ctx *CurlContext) ProcessResponse(index int, resp *CurlResponses, request *http.Request) (cerr *curlerrors.CurlError) {
+func (ctx *CurlContext) ProcessResponseToOutputs(index int, resp *CurlResponses, request *http.Request) (cerr *curlerrors.CurlError) {
 	err2 := ctx.Jar.Save() // is ignored if jar's filename is empty
 	if err2 != nil {
 		cerr = curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_WRITE_FILE, "Failed to save cookies to jar", err2)

@@ -1,9 +1,10 @@
-package tests
+package functionaltests
 
 import (
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
+	curlcommontests "github.com/cdwiegand/go-curling/tests/common"
 )
 
 func Test_Headers_CurlContext(t *testing.T) {
@@ -45,8 +46,8 @@ func Test_Headers_CmdLine(t *testing.T) {
 
 func helpers_Headers_success(json map[string]interface{}, testrun *TestRun) {
 	t := testrun.Testing
-	VerifyJson(t, json, "headers")
+	curlcommontests.VerifyJson(t, json, "headers")
 	args := json["headers"].(map[string]interface{})
-	VerifyGot(t, "World", args["X-Hello"])
-	VerifyGot(t, "Times", args["X-Good"])
+	curlcommontests.VerifyGot(t, "World", args["X-Hello"])
+	curlcommontests.VerifyGot(t, "Times", args["X-Good"])
 }

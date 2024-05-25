@@ -1,9 +1,10 @@
-package tests
+package functionaltests
 
 import (
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
+	curlcommontests "github.com/cdwiegand/go-curling/tests/common"
 )
 
 func Test_RedirectTest_CurlContext(t *testing.T) {
@@ -32,9 +33,9 @@ func Test_RedirectTest_CmdLine(t *testing.T) {
 func helper_RedirectTest_Success(json map[string]interface{}, testrun *TestRun) {
 	t := testrun.Testing
 
-	VerifyJson(t, json, "args")
+	curlcommontests.VerifyJson(t, json, "args")
 	args := json["args"].(map[string]interface{})
-	VerifyGot(t, "one", args["test"])
+	curlcommontests.VerifyGot(t, "one", args["test"])
 
 	if len(testrun.Responses.Responses) != 2 {
 		t.Errorf("Should have 2 responses, got %d", len(testrun.Responses.Responses))

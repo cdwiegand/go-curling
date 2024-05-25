@@ -1,10 +1,11 @@
-package tests
+package functionaltests
 
 import (
 	"os"
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
+	curlcommontests "github.com/cdwiegand/go-curling/tests/common"
 )
 
 func Test_PostWithMultipartForm_CurlContext(t *testing.T) {
@@ -32,7 +33,7 @@ func Test_PostWithMultipartForm_CmdLine(t *testing.T) {
 }
 func helper_PostWithMultipartForm_success(json map[string]interface{}, testrun *TestRun) {
 	t := testrun.Testing
-	VerifyJson(t, json, "files")
+	curlcommontests.VerifyJson(t, json, "files")
 	files := json["files"].(map[string]any)
-	VerifyGot(t, "one", files["test"])
+	curlcommontests.VerifyGot(t, "one", files["test"])
 }

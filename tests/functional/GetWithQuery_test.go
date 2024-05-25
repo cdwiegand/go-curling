@@ -1,9 +1,10 @@
-package tests
+package functionaltests
 
 import (
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
+	curlcommontests "github.com/cdwiegand/go-curling/tests/common"
 )
 
 func Test_GetWithQuery_CurlContext(t *testing.T) {
@@ -27,7 +28,7 @@ func Test_GetWithQuery_CmdLine(t *testing.T) {
 }
 func helper_GetWithQuery_success(json map[string]interface{}, testrun *TestRun) {
 	t := testrun.Testing
-	VerifyJson(t, json, "args")
+	curlcommontests.VerifyJson(t, json, "args")
 	args := json["args"].(map[string]any)
-	VerifyGot(t, "one", args["test"])
+	curlcommontests.VerifyGot(t, "one", args["test"])
 }

@@ -1,13 +1,22 @@
 package cli
 
 import (
+	"bufio"
 	"os"
+	"strings"
 
 	curl "github.com/cdwiegand/go-curling/context"
 	curlerrors "github.com/cdwiegand/go-curling/errors"
-	"github.com/spf13/pflag"
 	flag "github.com/spf13/pflag"
 )
+
+type ParseOnlyArgs struct {
+	ConfigFile string
+}
+
+func SetupConfigParseOnlyArgs(parseCtx *ParseOnlyArgs, flags *flag.FlagSet) {
+	flags.StringVarP(&parseCtx.ConfigFile, "config", "K", "", "Config file to parse for go-curling / curl")
+}
 
 func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	empty := []string{}
@@ -48,18 +57,116 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	flags.StringVar(&ctx.ClientCertKeyPassword, "key-password", "", "Password to decrypt client certificate key") // NOT UPSTREAM curl!
 	flags.BoolVar(&ctx.DisableCompression, "no-compressed", false, "Disables compression")
 	flags.BoolVarP(&ctx.FollowRedirects, "location", "L", false, "Follow redirects (3xx response Location headers)")
+	flags.IntVar(&ctx.MaxRedirects, "max-redirs", 50, "Maximum 3xx redirects to follow before stopping")
+	flags.StringVar(&ctx.DefaultProtocolScheme, "proto-default", "http", "Specifies default protocol to prepend to URLs")
+	flags.BoolVar(&ctx.Allow301Post, "post301", false, "If 301 redirect returned do not change method (to GET)")
+	flags.BoolVar(&ctx.Allow302Post, "post302", false, "If 302 redirect returned do not change method (to GET)")
+	flags.BoolVar(&ctx.Allow303Post, "post303", false, "If 303 redirect returned do not change method (to GET)")
+	flags.StringVar(&ctx.OAuth2_BearerToken, "oauth2-bearer", "", "OAuth2 Authorization header (Bearer: xxx)")
+	flags.BoolVar(&ctx.RedirectsKeepAuthenticationHeaders, "location-trusted", false, "Allow redirects to also receive Authentication headers")
+	flags.StringVarP(&ctx.ConfigFile, "config", "K", "", "Config file to pre-configure go-curling")
 }
 
-func ParseFlags(args []string, ctx *curl.CurlContext) (*pflag.FlagSet, []string, *curlerrors.CurlError) {
+func ParseFlags(args []string, ctx *curl.CurlContext) ([]string, *curlerrors.CurlError) {
 	// args: os.Args[1:] normally, if testing you provide :)
 	// I want to be able to test using my own args[], so can't use default flag.Parse()..
+
+	for i := 0; i < len(args); i++ {
+		if args[i] == "-K" || args[i] == "--config" {
+			moreArgs, err2 := ParseConfigFile(args[i+1])
+			if err2 != nil {
+				return nil, curlerrors.NewCurlError2(curlerrors.ERROR_INVALID_ARGS, "Invalid args/failed to parse flags", err2)
+			}
+			args = append(args, moreArgs...)
+		}
+	}
 
 	flags := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	SetupFlagArgs(ctx, flags)
 	err := flags.Parse(args)
 	extraArgs := flags.Args() // remaining non-parsed args
 	if err != nil {
-		return flags, extraArgs, curlerrors.NewCurlError2(curlerrors.ERROR_INVALID_ARGS, "Invalid args/failed to parse flags", err)
+		return nil, curlerrors.NewCurlError2(curlerrors.ERROR_INVALID_ARGS, "Invalid args/failed to parse flags", err)
 	}
-	return flags, extraArgs, nil
+	return extraArgs, nil
+}
+
+func ParseConfigFile(path string) ([]string, error) {
+	// each line is separate "arguments", with some tweaks, examples below
+
+	/*
+	  # short form no arg permitted as-is
+	  -s
+	  # short form with args too
+	  -o /dev/null
+	  # long form no arg can have --
+	  --post301
+	  # long form no arg also can omit --
+	  post302
+	  # long forms with arg the same..
+	  --oauth2-bearer Testing1234
+	  oauth2-bearer Testing1234
+	  oauth2-bearer "this is a test"
+	  # all of these valid, if you omit the -- you can use this format
+	  oauth2-bearer = "this is a test"
+	  oauth2-bearer: "this is a test"
+	  oauth2-bearer ="this is a test"
+	  oauth2-bearer : "this is a test"
+	  oauth2-bearer="this is a test"
+	  oauth2-bearer:"this is a test"
+	*/
+
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var ret []string
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		words := ParseConfigLine(line)
+		if len(words) > 0 {
+			ret = append(ret, words...)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return ret, err
+	}
+
+	return ret, nil
+}
+
+func ParseConfigLine(line string) []string {
+	line = strings.TrimSpace(line)
+	if len(line) == 0 || strings.Index(line, "#") == 0 {
+		return []string{} // nothing
+	}
+
+	if line[0] != '-' {
+		// long form w/o the --, a little more work is required
+		firstSpace := strings.IndexAny(line, " =:")
+		if firstSpace > 0 {
+			word1 := "--" + strings.TrimRightFunc(line[0:firstSpace], TrimBoundary)
+			word2 := strings.TrimLeftFunc(line[firstSpace+1:], TrimBoundary)
+			word2 = strings.Trim(word2, "\"")
+			return []string{word1, word2}
+		} else {
+			return []string{"--" + line}
+		}
+	} else {
+		idxSpace := strings.Index(line, " ")
+		if idxSpace > 0 {
+			return []string{line[0:idxSpace], line[idxSpace+1:]}
+		} else {
+			return []string{line}
+		}
+	}
+}
+
+func TrimBoundary(r rune) bool {
+	return r == ' ' || r == '=' || r == ':'
 }

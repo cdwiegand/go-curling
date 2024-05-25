@@ -1,10 +1,11 @@
-package tests
+package functionaltests
 
 import (
 	"os"
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
+	curlcommontests "github.com/cdwiegand/go-curling/tests/common"
 )
 
 func Test_PostWithFilesystemBinaryForm_CurlContext(t *testing.T) {
@@ -32,8 +33,8 @@ func Test_PostWithFilesystemBinaryForm_CmdLine(t *testing.T) {
 }
 func helper_PostWithFilesystemBinaryForm_success(json map[string]interface{}, testrun *TestRun) {
 	t := testrun.Testing
-	VerifyJson(t, json, "form")
+	curlcommontests.VerifyJson(t, json, "form")
 	form := json["form"].(map[string]any)
-	VerifyGot(t, "a", form["test"])
-	VerifyGot(t, "c", form["b"])
+	curlcommontests.VerifyGot(t, "a", form["test"])
+	curlcommontests.VerifyGot(t, "c", form["b"])
 }

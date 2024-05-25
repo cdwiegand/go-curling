@@ -1,9 +1,10 @@
-package tests
+package functionaltests
 
 import (
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
+	curlcommontests "github.com/cdwiegand/go-curling/tests/common"
 )
 
 func Test_RawishForm_CurlContext(t *testing.T) {
@@ -31,7 +32,7 @@ func Test_RawishForm_CmdLine(t *testing.T) {
 }
 func helper_RawishForm_success(json map[string]interface{}, testrun *TestRun) {
 	t := testrun.Testing
-	VerifyJson(t, json, "data")
+	curlcommontests.VerifyJson(t, json, "data")
 	data := json["data"]
-	VerifyGot(t, "{'name': 'Robert J. Oppenheimer'}", data)
+	curlcommontests.VerifyGot(t, "{'name': 'Robert J. Oppenheimer'}", data)
 }

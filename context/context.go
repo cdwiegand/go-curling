@@ -30,8 +30,16 @@ type CurlContext struct {
 	IsSilent                           bool
 	HeadOnly                           bool
 	DisableCompression                 bool
+	Allow301Post                       bool
+	Allow302Post                       bool
+	Allow303Post                       bool
 	FollowRedirects                    bool
+	MaxRedirects                       int
+	RedirectsKeepAuthenticationHeaders bool
+	OAuth2_BearerToken                 string
+	ConfigFile                         string
 	DoNotUseHostCertificateAuthorities bool
+	DefaultProtocolScheme              string
 	CaCertFile                         []string
 	CaCertPath                         string
 	ClientCertFile                     string
@@ -54,6 +62,7 @@ type CurlContext struct {
 	Form_Multipart                     []string
 	Form_MultipartRaw                  []string
 	Headers                            []string
+	HeadersDict                        map[string]string
 	filesAlreadyStartedWriting         map[string]*os.File
 }
 
@@ -76,7 +85,10 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 	if ctx.SilentFail || ctx.IsSilent {
 		ctx.IsSilent = true   // implied
 		ctx.SilentFail = true // both are the same thing right now, we only emit errors (or content)
-		ctx.BodyOutput = []string{}
+		// ctx.BodyOutput = []string{}
+	}
+	if ctx.DefaultProtocolScheme == "" {
+		ctx.DefaultProtocolScheme = "http"
 	}
 
 	if ctx.HeadOnly {
@@ -110,9 +122,9 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 		for _, s := range urls {
 			if strings.Index(s, "/") == 0 {
 				// url is /something/here - assume localhost!
-				s = "http://localhost" + s
+				s = ctx.DefaultProtocolScheme + "://localhost" + s
 			} else if !strings.Contains(s, "://") { // ok, wasn't a root relative path, but no protocol/not a valid url, let's try to set the protocol directly
-				s = "http://" + s
+				s = ctx.DefaultProtocolScheme + "http://" + s
 			}
 
 			u, err := url.Parse(s)
@@ -148,6 +160,9 @@ func (ctx *CurlContext) SetMethodIfNotSet(httpMethod string) {
 }
 
 func (ctx *CurlContext) SetHeaderIfNotSet(headerName string, headerValue string) {
+	if ctx.HeadersDict[headerName] != "" {
+		return
+	}
 	if len(ctx.Headers) > 0 {
 		for _, h := range ctx.Headers {
 			parts := strings.SplitN(h, ":", 2)
@@ -221,18 +236,16 @@ func (ctx *CurlContext) EmitSingleHttpResponseToOutputs(index int, resp *http.Re
 	}
 }
 
-func appendStrings(resp []byte, sepBody []byte, lines []string) (respOut []byte) {
+func appendStrings(resp []byte, sepBody []byte, lines []string) []byte {
 	vb := []byte(strings.Join(lines, "\n"))
-	respOut = appendByteArrays(resp, sepBody, vb)
-	return
+	return appendByteArrays(resp, sepBody, vb)
 }
 
-func appendByteArrays(resp []byte, sepBody []byte, secondBody []byte) (respOut []byte) {
+func appendByteArrays(resp []byte, sepBody []byte, secondBody []byte) []byte {
 	if len(resp) > 0 {
 		resp = append(resp, sepBody...)
 	}
-	respOut = append(resp, secondBody...)
-	return
+	return append(resp, secondBody...)
 }
 
 // standardize the filename, so OutputWriter implementations only need /dev/null, /dev/stdout, /dev/stderr, and anything else they can support

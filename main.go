@@ -32,7 +32,7 @@ func main() {
 	ctx := new(curl.CurlContext)
 	var cerr *curlerrors.CurlError
 
-	_, nonFlagArgs, cerr := curlcli.ParseFlags(os.Args[1:], ctx)
+	nonFlagArgs, cerr := curlcli.ParseFlags(os.Args[1:], ctx)
 	if cerr != nil {
 		handleErrorAndExit(cerr, ctx)
 		return
@@ -66,19 +66,19 @@ func main() {
 
 	var lastErrorCode *curlerrors.CurlError
 	for index := range ctx.Urls {
-		request, cerr := ctx.BuildRequest(index)
+		request, cerr := ctx.BuildHttpRequest(ctx.Urls[index], index, true, true)
 		if cerr != nil {
 			lastErrorCode = cerr
 			if ctx.FailEarly {
 				handleError(cerr, ctx)
 			}
 		} else {
-			resp, cerr := ctx.GetCompleteResponse(client, request)
+			resp, cerr := ctx.GetCompleteResponse(index, client, request)
 			if cerr != nil {
 				lastErrorCode = cerr
 				handleError(cerr, ctx)
 			} else {
-				cerr = ctx.ProcessResponse(index, resp, request)
+				cerr = ctx.ProcessResponseToOutputs(index, resp, request)
 				if cerr != nil {
 					lastErrorCode = cerr
 					handleError(cerr, ctx)

@@ -27,60 +27,91 @@ Not all HTTP-related functionality is supported either, but normal calls like GE
 
 - Globbing is NOT supported
 - Environment variable interpolation ("Variables" in the curl man page) is not supported
-- Command line arguments not listed below are also not supported
-- go-curling does not implement global vs scoped arguments - `-:` / `--next` is not supported
+- Command line arguments not listed as supported are not supported
+- You cannot merge "short form" arguments directly with their values, e.g.: `curl -darbitrary https://...` is not supported, you must use `curl -d arbitrary https://...`
+- `no-xxx` form arguments are generally not recognized, unless documented by default their positive version being true (e.g. `--no-fail` doesn't exist as `--fail` is not a default value, but `--no-compressed` does exist because by default HTTP requests permit compression as `--compressed` is inherently default and doesn't exist to turn "on")
+- go-curling does not implement global vs scoped arguments - `-:` / `--next` are not supported
 
 Note that one thing that is now supported is that if you specify multiple URLs, you can specify multiple `-o` or `-D` values and go-curling will honor that, but if you specify more URLs than you have specified outputs, the extra URLs will be processed with the default value for the given flag (content output to stdout).
 
-# Arguments
-| short | long form | default | type | description |
-| -- | -- | -- | -- | -- |
-| `-V` | `--version` | (none) | (none) | Return version and exit |
-| `-X` | `--method` | `GET` | string | HTTP method to use (generally `GET` unless overridden by other parameters) |
-| `-o` | `--output` | `-` (/dev/stdout) | `-` or file-path(s) | Where to output results |
-| `-D` | `--dump-header` | `/dev/null` | `-` or file-path(s) | Where to output headers separately |
-|      | `--stderr` | `/dev/stderr` | `-` or file-path | Log errors to this replacement for stderr |
-| `-A` | `--user-agent` | `go-curling/XXXXX` | string | User-agent to use (XXXXX is a version/build identifier) |
-| `-k` | `--insecure` | (false) | flag | Ignore invalid SSL certificates |
-| `-f` | `--fail` | (false) | flag | If fail do not emit contents just return fail exit code |
-| `-s` | `--silent` | (false) | flag | Do not emit any output (unless overridden with `show-error`) |
-| `-S` | `--show-error` | (false) | flag | Show error info even if silent/fail modes on |
-| `-i` | `--include` | (false) | flag | Prepend returned headers to body output |
-| `-I` | `--head` | (false) | flag | Only emit headers returned, ignore body |
-| `-u` | `--user` | (none) | string | Username:Password for HTTP Basic Authentication |
-| `-e` | `--referer` | (none) | URI | HTTP referer header |
-| `-H` | `--header` | (none) | Header to append to request in the format `"header: value"` | 
-| `-b` | `--cookie` | (none) | HTTP cookie string or `@`file-path | Specifies initial HTTP cookies |
-| `-c` | `--cookie-jar` | (none) | file-path | Specifies file to which to write ongoing cookies to |
-|      | `--junk-session-cookies` | (false) | flag | Does not store session cookies after all URLs completed |
-| `-d` | `--data` | (none) | name=value OR name=`@`file-path | Send next parameter as raw string data |
-|      | `--data-binary` | (none) | name=value OR name=`@`file-path | Send next parameter raw binary data |
-|      | `--data-raw` | (none) | name=value OR name=`@`file-path | Send next parameter exactly as given |
-|      | `--data-urlencoded` | (none) | name=value OR name=`@`file-path | Send next parameter URL encoding first |
-| `-F` | `--form` | (none) | name=value OR name=`@`file-path OR name=`<`file-path | Send next parameter as a multipart form field (or `@file`) |
-| `-T` | `--upload-file` | (none) | file-path | Upload file(s) to given URL(s) 1:1, as PUT, MIME type detected |
+## curl arguments supported
+ 
+| curl argument | supported? | notes |
+| -- | -- | -- | 
+| `--basic` | (default) | Is only supported auth mech |
+| `--ca-native` | (default) | `--no-ca-native` used to turn off |
+| `--cacert` | yes | **(missing test)** |
+| `--capath` | yes | **(missing tests)** Loads all files in path and attempts to parse |
+| `-E`/`--cert` | yes | **(missing tests)** |
+| `--compressed` | (default) | turn off via `--no-compressed` |
+| `-K`/`--config` | yes | `ParseArgsWithConfigFile` |
+| `-b`/`--cookie` | yes | HTTP cookie string or `@`file-path, specifies initial HTTP cookies |
+| `-c`/`--cookie-jar` | yes | Specifies file to use for ongoing cookies between requests, cannot use curl's native jar files |
+| `-d`/`--data` | yes | Send raw string data name=value OR name=`@`file-path |
+| `--data-binary` | yes | Send raw binary data name=value OR name=`@`file-path | |
+| `--data-raw` | yes | Send next parameter exactly as given (does not read `@` file value) |
+| `--data-urlencode` | yes | Send URL encoded data name=value OR name=`@`file-path |
+| `-D`/`--dump-header` | yes | Where to output headers, /dev/null default **(missing tests)** |
+| `-f`/`--fail` | yes | If fail do not emit contents just return fail exit code **(missing tests)** |
+| `--fail-early` | yes | **(missing tests)** |
+| `-F`/`--form` | yes | Send next parameter as a multipart form field (or attach `@file`), name=value OR name=`@`file-path OR name=`<`file-path |
+| `--form-string` | yes | `PostWithMultipartFormRaw3` |
+| `-I`/`--head` | yes | Send HEAD request, only emit headers returned, ignore body **(missing tests)** |
+| `-H`/`--header` | yes | Header to append to request in the format `"header: value"` |
+| `-h`/`--help` | yes | **(missing tests)** |
+| `-i`/`--include` | yes | Prepend returned headers to body output **(missing tests)** |
+| `-k`/`--insecure` | yes | Ignore invalid SSL certificates **(missing tests)** |
+| `--json` | yes | `PostJsonInclude` |
+| `-j`/`--junk-session-cookies` | yes | Does not store session cookies after all URLs completed **(missing tests)** |
+| `--key` | yes | **(missing tests)** |
+| `-L`/`--location` | yes | `Redirect` |
+| `--location-trusted` | yes | **(missing tests)** |
+| `--max-redirs` | yes | **(missing tests)** |
+| `--oauth2-bearer` | yes | **(missing tests)** |
+| `-o`/`--output` | yes | Where to output results, /dev/stdout default |
+| `--pass` | yes | **(missing tests)** |
+| `--post301` | yes | **(missing tests)** |
+| `--post302` | yes | **(missing tests)** |
+| `--post303` | yes | **(missing tests)** |
+| `--proto-default` | yes | **(missing tests)** |
+| `-e`/`--referer` | yes | HTTP referer header **(missing tests)** |
+| `-X`/`--request` | yes | HTTP method to use (generally `GET` unless overridden by other parameters) |
+| `-S`/`--show-error` | yes | Show error info even if silent/fail modes on **(missing tests)** |
+| `-s`/`--silent` | yes | Do not emit any output (unless overridden with `show-error`) **(missing tests)** |
+| `--stderr` | yes | Log errors, /dev/stderr default |
+| `-T`/`--upload-file` | yes | Upload file(s) to given URL(s) 1:1, as PUT, MIME type detected |
+| `--url` | yes | **(missing tests)** |
+| `-u`/`--user` | yes | Username:Password for HTTP Basic Authentication **(missing tests)** |
+| `-A`/`--user-agent` | yes | User-agent to use (`go-curling/XXXXX` default, XXXXX is a version/build identifier) **(missing tests)** |
+| `-v`/`--verbose` | yes | **(missing tests)** |
+| `-V`/`--version` | yes | Return version and exit**(missing tests)** |
 
-# General Arguments
+# General Arguments Notes
 
 * `--version` is intended to return a build date/version header, and is not intended for parsing by programs. It will return immediately and not process any requests.
-* `--method` allows you to specify an explicit HTTP verb, some parameters will also inherently override it (ex: `-I`/`--head` will set it to HEAD).
-* `--head` will suppress content output and will emit the headers to the "content" output location. This means that `--head -o /tmp/1` is the same as `-D /tmp/1 -o /dev/null`.
-* `--dump-header` will emit the HTTP response headers (if set to `-`, they will appear BEFORE the content output).
+* `--request` / `-X` allows you to specify an explicit HTTP verb, some parameters will also inherently override it (ex: `-I`/`--head` will set it to HEAD).
+* `--head` / `-I` will suppress content output and will emit the headers to the "content" output location. This means that `--head -o /tmp/1` is the same as `-D /tmp/1 -o /dev/null`.
+* `--dump-header` / `-H` will emit the HTTP response headers (if set to `-`, they will appear BEFORE the content output).
 * `--output {file path or -}` redirects the content output to another location than stdout.
 * `--stderr {file path or -}` will emit errors to the given location.
 * `--user-agent {value}` will send the given user agent via HTTP instead of the default.
-* `--insecure` will ignore invalid HTTPS certificates.
-* `--fail` will suppress outputs ONLY ON FAILURE and just return a failure error code (non-zero); success will still output by default. 
-* `--silent` will not emit any output regardless of success or failure.
-* `--show-error` will show error info even if silent/fail modes on.
-* `--include` will include emit returned headers and output to the output path (effectively `-D - -o -`, or `-D file1 -o file1`).
+* `--insecure` / `-K` will ignore invalid HTTPS certificates.
+* `--fail` / `-f` will suppress outputs ONLY ON FAILURE and just return a failure error code (non-zero); success will still output by default. 
+* `--silent` / `-s` will not emit any output regardless of success or failure.
+* `--show-error` / `-S` will show error info even if silent/fail modes on.
+* `--include` / `-i` will include emit returned headers and output to the output path (effectively `-D - -o -`, or `-D file1 -o file1`).
 * `--user` allows you to specify a Basic HTTP `username:password` style authentication header.
 * `--referer` specifies the `Referer` HTTP header.
-* `--header` (repeatable) allows you to specify any valid HTTP header, and will override defaults set by other parameters (such as `-d` or `--form`).
-* `--cookie` (repeatable) allows you to specify an HTTP cookie (as a string, or as a file containing the cookie definition.
-* `--cookie-jar` allows you to store HTTP cookies for multiple invocations.
+* `--header` / `-H` (repeatable) allows you to specify any valid HTTP header, and will override defaults set by other parameters (such as `-d` or `--form`).
+* `--cookie` / `-b` (repeatable) allows you to specify an HTTP cookie (as a string, or as a file containing the cookie definition.
+* `--cookie-jar` / `-c` allows you to store HTTP cookies for multiple invocations.
+* `--post301`, `--post302`, and `--post303` retain POST as the method, along with any file/data uploads on those status codes. Normally we will drop to GET and also drop any data/file arguments.
+* `--max-redirs` limits the number of redirections to process to 50 by default. Pass -1, 0, or any negative number to allow unlimited redirects.
+* `--proto-default` specifies the default protocol for new URLs (default: http)
+* `--oauth2-bearer` specifies an OAuth2 Authorization header (Bearer: xxx) to pass to the first request.
+* `--location-trusted` permits redirects to retain authorization headers (basic auth or oauth2 bearer)
 
-# File/Form/Upload Arguments
+# File/Form/Upload Arguments Notes
 
 * The `--data*` parameters will by default use `POST` as the HTTP verb and `application/x-www-form-urlencoded` as the content type (unless you specify a `Content-Type` header via `-H`):
 * * Using `--data name=value` will send `name` as a raw (already URL encoded) value `value`.
@@ -108,7 +139,7 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 - 250: Invalid/missing url
 
 # Tests
-Tests are now present in the code - run `go test -v ./...` to run them.
+Tests are now present in the code - run `go test -v ./...` to run them. Most test files contain both 
 
 # License
 go-curling is licensed under the [MIT License](./LICENSE). Previously it was licensed under the LGPL - as I am the sole author prior to this change, I approve the change.
@@ -116,3 +147,226 @@ go-curling is licensed under the [MIT License](./LICENSE). Previously it was lic
 # Credits
 
 Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.html), as well as to [@emacampolo](https://github.com/emacampolo) for a great JSON comparator class, [@ericbsantana](https://github.com/ericbsantana) for [gurl](https://github.com/ericbsantana/gurl) that inspired me to do more with a simple project, and everyone else who has posted golang code on the web for the rest of us to learn from!
+
+# curl arguments not supported yet
+
+- `--abstract-unix-socket`
+- `--alt-svc`
+- `--anyauth`
+- `--aws-sigv4`
+- `--cert-status`
+- `--cert-type `
+- `--ciphers`
+- `--connect-timeout`
+- `--connect-to`
+- `-C`/`--continue-at`
+- `--create-dirs`
+- `--create-file-mode`
+- `--crlf`
+- `--crlfile`
+- `--curves`
+- `--data-ascii`
+- `--delegation`
+- `--digest`
+- `-q`/`--disable`
+- `--disallow-username-in-url`
+- `--dns-interface`
+- `--dns-ipv4-addr`
+- `--dns-ipv6-addr`
+- `--dns-servers`
+- `--doh-cert-status`
+- `--doh-insecure`
+- `--doh-url`
+- `--ech`
+- `--egd-file`
+- `--engine`
+- `--etag-compare`
+- `--etag-save`
+- `--expect100-timeout`
+- `--fail-with-body`
+- `--false-start`
+- `--form-escape`
+- `-G`/`--get`
+- `-g`/`--globoff`
+- `--happy-eyeballs-timeout-ms`
+- `--haproxy-clientip`
+- `--haproxy-protocol`
+- `--hsts`
+- `--http0.9`
+- `-0`/`--http1.0`
+- `--http1.1`
+- `--http2`
+- `--http2-prior-knowledge`
+- `--http3`
+- `--http3-only`
+- `--ignore-content-length`
+- `--interface`
+- `--ipfs-gateway`
+- `-4`/`--ipv4`
+- `-6`/`--ipv6`
+- `--keepalive-time`
+- `--key-type`
+- `--krb`
+- `--libcurl`
+- `--limit-rate`
+- `--local-port`
+- `-M`/`--manual`
+- `--max-filesize`
+- `-m`/`--max-time`
+- `--metalink`
+- `--negotiate`
+- `-n`/`--netrc`
+- `--netrc-file`
+- `--netrc-optional`
+- `-:`/`--next`
+- `--no-alpn`
+- `-N`/`--no-buffer`
+- `--no-clobber`
+- `--no-keepalive`
+- `--no-npn`
+- `--no-progress-meter`
+- `--no-sessionid`
+- `--ntlm`
+- `--output-dir`
+- `-Z`/`--parallel`
+- `--parallel-immediate`
+- `--parallel-max`
+- `--path-as-is` *`go-curling` does not modify given URL(s)*
+- `--pinnedpubkey`
+- `-#`/`--progress-bar`
+- `-x`/`--proxy`
+- `-r`/`--range`
+- `--rate`
+- `--raw`
+- `-J`/`--remote-header-name`
+- `-O`/`--remote-name`
+- `--remote-name-all`
+- `-R`/`--remote-time`
+- `--remove-on-error`
+- `--request-target`
+- `--resolve`
+- `--retry`
+- `--retry-all-errors`
+- `--retry-connrefused`
+- `--retry-delay`
+- `--retry-max-time`
+- `--service-name`
+- `-Y`/`--speed-limit`
+- `-y`/`--speed-time`
+- `--ssl`
+- `--ssl-allow-beast`
+- `--ssl-auto-client-cert`
+- `--ssl-no-revoke`
+- `--ssl-reqd`
+- `--ssl-revoke-best-effort`
+- `-2`/`--sslv2`
+- `-3`/`--sslv3`
+- `--styled-output`
+- `--tcp-fastopen`
+- `--tcp-nodelay` *Need to add `no-tcp-nodelay`*
+- `-z`/`--time-cond`
+- `--tls-max`
+- `--tls13-ciphers`
+- `--tlsauthtype`
+- `--tlspassword`
+- `--tlsuser`
+- `-1`/`--tlsv1`
+- `--tlsv1.0`
+- `--tlsv1.1`
+- `--tlsv1.2`
+- `--tlsv1.3`
+- `--tr-encoding`
+- `--trace`
+- `--trace-ascii`
+- `--trace-config`
+- `--trace-ids`
+- `--trace-time`
+- `--unix-socket`
+- `--url-query`
+- `--variable`
+- `-w`/`--write-out`
+- `--xattr`
+
+These are not applicable because `go-curling` does not support proxies yet:
+
+- `--no-proxy` 
+- `--preproxy` 
+- `--proxy-anyauth` 
+- `--proxy-basic` 
+- `--proxy-ca-native` 
+- `--proxy-cacert` 
+- `--proxy-capath` 
+- `--proxy-cert` 
+- `--proxy-cert-type` 
+- `--proxy-ciphers` 
+- `--proxy-crlfile` 
+- `--proxy-digest` 
+- `--proxy-header` 
+- `--proxy-http2` 
+- `--proxy-insecure` 
+- `--proxy-key` 
+- `--proxy-key-type` 
+- `--proxy-negotiate` 
+- `--proxy-ntlm` 
+- `--proxy-pass` 
+- `--proxy-pinnedpubkey` 
+- `--proxy-service-name` 
+- `--proxy-ssl-allow-beast` 
+- `--proxy-ssl-auto-client-cert` 
+- `--proxy-tls13-ciphers` 
+- `--proxy-tlsauthtype` 
+- `--proxy-tlspassword` 
+- `--proxy-tlsuser` 
+- `--proxy-tlsv1` 
+- `--socks4` 
+- `--socks4a` 
+- `--socks5` 
+- `--socks5-basic` 
+- `--socks5-gssapi` 
+- `--socks5-gssapi-nec` 
+- `--socks5-gssapi-service` 
+- `--socks5-hostname` 
+
+## curl arguments not applicable
+
+These are not applicable because they are only for protocols other than HTTP/S or they are deprecated in upstream `curl`:
+
+- `-a`/`--append`
+- `--compressed-ssh`
+- `-q`/`--disable`
+- `--disable-eprt`/`--no-eprt`
+- `--eprt`
+- `--disable-epsv,--no-epsv`
+- `--epsv`
+- `--ftp-account`
+- `--ftp-alternative-to-user`
+- `--ftp-create-dirs`
+- `--ftp-method`
+- `--ftp-pasv`
+- `-P`/`--ftp-port`
+- `--ftp-pret`
+- `--ftp-skip-pasv-ip`
+- `--ftp-ssl-ccc`
+- `--ftp-ssl-ccc-mode`
+- `--ftp-ssl-control`
+- `--hostpubmd5`
+- `--hostpubsha256`
+- `-l`/`--list-only`
+- `--login-options`
+- `--mail-auth`
+- `--mail-from`
+- `--mail-rcpt`
+- `--mail-rcpt-allowfails`
+- `--ntlm-wb` *Deprecated in curl*
+- `--proto`
+- `--proto-redir`
+- `-x`/`--proxy`
+- `--pubkey`
+- `-Q`/`--quote`
+- `--random-file` *Deprecated in curl*
+- `--sasl-authzid`
+- `--sasl-ir`
+- `-t`/`--telnet-option`
+- `--tftp-blksize`
+- `--tftp-no-options`
+- `-B`/`--use-ascii`

@@ -1,9 +1,10 @@
-package tests
+package functionaltests
 
 import (
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
+	curlcommontests "github.com/cdwiegand/go-curling/tests/common"
 )
 
 func Test_GetWithCookies_CurlContext(t *testing.T) {
@@ -38,7 +39,7 @@ func Test_GetWithCookies_CmdLine(t *testing.T) {
 func helper_GetWithCookies_success(json map[string]interface{}, testrun *TestRun) {
 	t := testrun.Testing
 
-	VerifyJson(t, json, "cookies")
+	curlcommontests.VerifyJson(t, json, "cookies")
 	cookies := json["cookies"].(map[string]interface{})
-	VerifyGot(t, "value2", cookies["testcookie2"])
+	curlcommontests.VerifyGot(t, "value2", cookies["testcookie2"])
 }

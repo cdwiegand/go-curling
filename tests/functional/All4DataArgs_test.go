@@ -1,4 +1,4 @@
-package tests
+package functionaltests
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
+	curlcommontests "github.com/cdwiegand/go-curling/tests/common"
 )
 
 func Test_All4DataArgs_Context(t *testing.T) {
@@ -60,16 +61,16 @@ func Test_All4DataArgs_CmdLine(t *testing.T) {
 func helper_All4DataArgs_Success(json map[string]interface{}, index int, testrun *TestRun) {
 	t := testrun.Testing
 
-	VerifyJson(t, json, "form")
+	curlcommontests.VerifyJson(t, json, "form")
 	form := json["form"].(map[string]any)
-	VerifyGot(t, "a", form["testdatastandard"])
-	VerifyGot(t, "c", form["b1"])
-	VerifyGot(t, "a&b", form["testdataencoded"])
-	VerifyGot(t, "a", form["testdatastandard2"])
-	VerifyGot(t, "c", form["b3"])
-	VerifyGot(t, "a", form["testdatabinary2"])
-	VerifyGot(t, "c", form["b4"])
-	VerifyGot(t, "a&b", form["testdataencoded2"])
+	curlcommontests.VerifyGot(t, "a", form["testdatastandard"])
+	curlcommontests.VerifyGot(t, "c", form["b1"])
+	curlcommontests.VerifyGot(t, "a&b", form["testdataencoded"])
+	curlcommontests.VerifyGot(t, "a", form["testdatastandard2"])
+	curlcommontests.VerifyGot(t, "c", form["b3"])
+	curlcommontests.VerifyGot(t, "a", form["testdatabinary2"])
+	curlcommontests.VerifyGot(t, "c", form["b4"])
+	curlcommontests.VerifyGot(t, "a&b", form["testdataencoded2"])
 	testdataraw := fmt.Sprintf("%v", form["testdataraw"])
 	if !strings.HasPrefix(testdataraw, "@") {
 		t.Errorf("testdataraw was %q - should start with @ - it should be the EXACT value, no @file support", testdataraw)

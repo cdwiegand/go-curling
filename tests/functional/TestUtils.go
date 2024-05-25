@@ -1,10 +1,8 @@
-package tests
+package functionaltests
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +13,7 @@ import (
 	curl "github.com/cdwiegand/go-curling/context"
 	curlerrors "github.com/cdwiegand/go-curling/errors"
 	jsonutil "github.com/cdwiegand/go-curling/jsonutil"
+	curlcommontests "github.com/cdwiegand/go-curling/tests/common"
 )
 
 type TestRun struct {
@@ -90,40 +89,6 @@ func GenericTestErrorHandler(t *testing.T, err *curlerrors.CurlError) {
 	t.Errorf("Got error %v", err)
 }
 
-// helper functions
-func VerifyGot(t *testing.T, wanted any, got any) bool {
-	if got != wanted {
-		t.Errorf("got %q wanted %q", got, wanted)
-		return false
-	}
-	return true
-}
-func VerifyJson(t *testing.T, json map[string]interface{}, arg string) bool {
-	if json[arg] == nil {
-		err := fmt.Sprintf("%v was not present in json response", arg)
-		t.Errorf(err)
-		return false
-	}
-	return true
-}
-
-func ReadJson(file string) (res map[string]interface{}, raw string, err error) {
-	jsonFile, err := os.Open(file)
-	if err != nil {
-		return nil, "", err
-	}
-	defer jsonFile.Close()
-
-	byteValue, err := io.ReadAll(jsonFile)
-	if err != nil {
-		return nil, "", err
-	}
-
-	raw = string(byteValue)
-	json.Unmarshal(byteValue, &res)
-	return res, raw, nil
-}
-
 func (run *TestRun) Run() {
 	var ctx *curl.CurlContext
 	var args []string
@@ -135,7 +100,7 @@ func (run *TestRun) Run() {
 	} else if run.CmdLineBuilder != nil {
 		ctx = new(curl.CurlContext)
 		args = run.CmdLineBuilder(run)
-		_, nonFlagArgs, cerr = curlcli.ParseFlags(args, ctx)
+		nonFlagArgs, cerr = curlcli.ParseFlags(args, ctx)
 		if cerr != nil {
 			run.ErrorHandler(cerr, run)
 			return
@@ -157,20 +122,20 @@ func (run *TestRun) Run() {
 	}
 
 	for index := range ctx.Urls {
-		request, cerr := ctx.BuildRequest(index)
+		request, cerr := ctx.BuildHttpRequest(ctx.Urls[index], index, true, true)
 		if cerr != nil {
 			run.ErrorHandler(cerr, run)
 			return
 		}
 
-		resp, cerr := ctx.GetCompleteResponse(client, request)
+		resp, cerr := ctx.GetCompleteResponse(index, client, request)
 		run.Responses = resp
 		if cerr != nil {
 			run.ErrorHandler(cerr, run)
 			return
 		}
 
-		cerr = ctx.ProcessResponse(index, resp, request)
+		cerr = ctx.ProcessResponseToOutputs(index, resp, request)
 		if cerr != nil {
 			run.ErrorHandler(cerr, run)
 			return
@@ -181,7 +146,7 @@ func (run *TestRun) Run() {
 			return
 		}
 
-		jsonObj, rawJson, err := ReadJson(run.ListOutputFiles[index])
+		jsonObj, rawJson, err := curlcommontests.ReadJson(run.ListOutputFiles[index])
 		if err != nil {
 			run.ErrorHandler(curlerrors.NewCurlError2(curlerrors.ERROR_STATUS_CODE_FAILURE, "Failed to parse JSON", err), run)
 			return
@@ -223,7 +188,7 @@ func CompareCurlCliOutput(run *TestRun, args []string, myJsonObj map[string]inte
 		return curlerr
 	}
 
-	curlJsonObj, curlJsonRaw, err := ReadJson(run.ListOutputFiles[0])
+	curlJsonObj, curlJsonRaw, err := curlcommontests.ReadJson(run.ListOutputFiles[0])
 	if err != nil {
 		return err
 	}
@@ -281,7 +246,7 @@ func (run *TestRun) RunAgainstCurlCli() {
 	}
 
 	for index := range run.ListOutputFiles {
-		json, rawJson, err := ReadJson(run.ListOutputFiles[index])
+		json, rawJson, err := curlcommontests.ReadJson(run.ListOutputFiles[index])
 		if err != nil {
 			run.ErrorHandler(curlerrors.NewCurlError2(curlerrors.ERROR_STATUS_CODE_FAILURE, "Failed to parse JSON", err), run)
 			return

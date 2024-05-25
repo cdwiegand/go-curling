@@ -1,10 +1,11 @@
-package tests
+package functionaltests
 
 import (
 	"os"
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
+	curlcommontests "github.com/cdwiegand/go-curling/tests/common"
 )
 
 func Test_PutWithUpload_filesystemFilesForm_CurlContext(t *testing.T) {
@@ -37,7 +38,7 @@ func Test_PutWithUpload_filesystemFilesForm_CmdLine(t *testing.T) {
 func helper_PutWithUpload_filesystemFilesForm_success(json map[string]interface{}, index int, testrun *TestRun) {
 	t := testrun.Testing
 	expectedResult := []string{"test=one", "test=two"}
-	VerifyJson(t, json, "data")
+	curlcommontests.VerifyJson(t, json, "data")
 	data := json["data"].(string)
-	VerifyGot(t, expectedResult[index], data)
+	curlcommontests.VerifyGot(t, expectedResult[index], data)
 }
