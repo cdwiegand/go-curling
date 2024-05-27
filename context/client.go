@@ -10,6 +10,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	curlerrors "github.com/cdwiegand/go-curling/errors"
 )
@@ -28,6 +29,35 @@ func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
 	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: ctx.IgnoreBadCerts}
 
+	if ctx.Tls_MinVersion_1_0 {
+		customTransport.TLSClientConfig.MinVersion = tls.VersionTLS10
+	}
+	if ctx.Tls_MinVersion_1_1 {
+		customTransport.TLSClientConfig.MinVersion = tls.VersionTLS11
+	}
+	if ctx.Tls_MinVersion_1_2 {
+		customTransport.TLSClientConfig.MinVersion = tls.VersionTLS12
+	}
+	if ctx.Tls_MinVersion_1_3 {
+		customTransport.TLSClientConfig.MinVersion = tls.VersionTLS13
+	}
+	if ctx.Tls_MaxVersionString != "" {
+		maxTls, err := GetTlsVersionValue(ctx.Tls_MaxVersionString)
+		if err != nil {
+			return nil, curlerrors.NewCurlError2(curlerrors.ERROR_INVALID_ARGS, fmt.Sprintf("Failed to parse TLS version %s", ctx.Tls_MaxVersionString), err)
+		}
+		if maxTls > 0 {
+			customTransport.TLSClientConfig.MaxVersion = maxTls
+		}
+	}
+
+	if ctx.ForceTryHttp2 {
+		customTransport.ForceAttemptHTTP2 = true
+	}
+	if ctx.Expect100Timeout > 0 {
+		customTransport.ExpectContinueTimeout = time.Duration(ctx.Expect100Timeout)
+	}
+
 	var cerr *curlerrors.CurlError
 	customTransport.TLSClientConfig.RootCAs, cerr = ctx.BuildRootCAsPool()
 	if cerr != nil {
@@ -43,6 +73,11 @@ func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 	}
 
 	customTransport.DisableCompression = !ctx.EnableCompression
+	customTransport.DisableKeepAlives = ctx.DisableKeepalives
+	if ctx.DisableBuffer {
+		customTransport.ReadBufferSize = 0
+		customTransport.WriteBufferSize = 0
+	}
 
 	return &http.Client{
 		Transport: customTransport,
@@ -74,9 +109,21 @@ func (ctx *CurlContext) BuildHttpRequest(url string, index int, submitDataFormsP
 				return nil, err // just stop now
 			}
 		} else if ctx.HasDataArgs() {
-			body, err = ctx.HandleDataArgs()
+			bodyData, err := ctx.HandleDataArgs(ctx.ConvertPostFormIntoGet)
 			if err != nil {
 				return nil, err // just stop now
+			}
+			if ctx.ConvertPostFormIntoGet {
+				ctx.SetMethodIfNotSet("GET")
+				if strings.Contains(url, "?") {
+					url += "&"
+				} else {
+					url += "?"
+				}
+				url += bodyData.String()
+				body = nil
+			} else {
+				body = io.Reader(bodyData)
 			}
 		}
 	}
@@ -172,8 +219,18 @@ func (ctx *CurlContext) GetCompleteResponse(index int, client *http.Client, requ
 	urls = append(urls, request)
 	for i := 0; i < len(urls) && (ctx.MaxRedirects <= 0 || i < ctx.MaxRedirects); i++ {
 		r := urls[i]
-		respReal := GetCurlResponse(client, r)
-		respsReal.Responses = append(respsReal.Responses, respReal)
+		var respReal *CurlResponse
+		for retry := 0; retry <= ctx.MaxRetries; retry++ {
+			respReal = GetCurlResponse(client, r)
+			respsReal.Responses = append(respsReal.Responses, respReal)
+
+			if ctx.canStatusCodeRetry(respReal.HttpResponse.StatusCode) && retry < ctx.MaxRetries {
+				time.Sleep(time.Duration(ctx.RetryDelaySeconds) * time.Second)
+			} else {
+				break
+			}
+		}
+
 		respsReal.IsError = (respReal.HttpResponse == nil || respReal.HttpResponse.StatusCode >= 400)
 
 		if respReal.Error != nil {
@@ -228,6 +285,14 @@ func GetCurlResponse(client *http.Client, request *http.Request) *CurlResponse {
 	}
 
 	return respReal
+}
+
+func (ctx *CurlContext) canStatusCodeRetry(statusCode int) bool {
+	if ctx.RetryAllErrors {
+		return statusCode >= 400
+	} else {
+		return statusCode == 408 || statusCode == 429 || statusCode == 500 || statusCode == 502 || statusCode == 503 || statusCode == 504
+	}
 }
 
 func (ctx *CurlContext) ProcessResponseToOutputs(index int, resp *CurlResponses, request *http.Request) (cerr *curlerrors.CurlError) {
@@ -310,6 +375,27 @@ func GetTlsVersionString(version uint16) (res string) {
 		res = fmt.Sprintf("Unknown TLS version: %v", version)
 	}
 	return
+}
+
+func GetTlsVersionValue(value string) (uint16, error) {
+	switch value {
+	case "default":
+		return 0, nil
+	case "":
+		return 0, nil
+	case "1.0":
+		return tls.VersionTLS10, nil
+	case "1.1":
+		return tls.VersionTLS11, nil
+	case "1.2":
+		return tls.VersionTLS12, nil
+	case "1.3":
+		return tls.VersionTLS13, nil
+	case "1.4":
+		return AssumedVersionTLS14, nil
+	default:
+		return 0, fmt.Errorf("unknown TLS version: %q", value)
+	}
 }
 
 const (

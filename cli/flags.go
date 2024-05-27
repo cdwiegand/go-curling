@@ -32,6 +32,7 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	flags.StringArrayVar(&ctx.Urls, "url", []string{}, "Requesting URL")
 	flags.BoolVarP(&ctx.SilentFail, "fail", "f", false, "If fail do not emit contents just return fail exit code (-6)")
 	flags.BoolVar(&ctx.FailEarly, "fail-early", false, "If any URL fails, stop immediately and do not continue.")
+	flags.BoolVar(&ctx.FailWithBody, "fail-with-body", false, "If fail emit contents and return fail exit code (-6)")
 	flags.BoolVarP(&ctx.IgnoreBadCerts, "insecure", "k", false, "Ignore invalid SSL certificates")
 	flags.BoolVarP(&ctx.IsSilent, "silent", "s", false, "Silence all program console output")
 	flags.BoolVarP(&ctx.ShowErrorEvenIfSilent, "show-error", "S", false, "Show error info even if silent mode on")
@@ -56,8 +57,10 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	flags.StringVar(&ctx.ClientCertKeyFile, "key", "", "Client certificate key to use for authentication to server, with :password after if encrypted")
 	flags.StringVar(&ctx.ClientCertKeyPassword, "key-password", "", "Password to decrypt client certificate key") // NOT UPSTREAM curl!
 	flags.BoolVar(&ctx.EnableCompression, "compressed", false, "Requests compression")
-	flags.BoolVar(&ctx.EnableCompression, "tr-encoding", false, "Requests compression (obsolete)")
-	flags.MarkHidden("tr-encoding")
+	//flags.BoolVar(&ctx.EnableCompression, "tr-encoding", false, "Requests compression (obsolete)")
+	//flags.MarkHidden("tr-encoding")
+	flags.BoolVar(&ctx.DisableKeepalives, "no-keepalive", false, "Disable use of keepalive messages")
+	flags.BoolVarP(&ctx.DisableBuffer, "no-buffer", "N", false, "Disables buffering")
 	flags.BoolVarP(&ctx.FollowRedirects, "location", "L", false, "Follow redirects (3xx response Location headers)")
 	flags.IntVar(&ctx.MaxRedirects, "max-redirs", 50, "Maximum 3xx redirects to follow before stopping")
 	flags.StringVar(&ctx.DefaultProtocolScheme, "proto-default", "http", "Specifies default protocol to prepend to URLs")
@@ -67,6 +70,14 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	flags.StringVar(&ctx.OAuth2_BearerToken, "oauth2-bearer", "", "OAuth2 Authorization header (Bearer: xxx)")
 	flags.BoolVar(&ctx.RedirectsKeepAuthenticationHeaders, "location-trusted", false, "Allow redirects to also receive Authentication headers")
 	flags.StringVarP(&ctx.ConfigFile, "config", "K", "", "Config file to pre-configure go-curling")
+	flags.BoolVar(&ctx.Tls_MinVersion_1_3, "tlsv1.3", false, "Force TLS connections to version 1.3 or higher")
+	flags.BoolVar(&ctx.Tls_MinVersion_1_2, "tlsv1.2", false, "Force TLS connections to version 1.2 or higher")
+	flags.BoolVar(&ctx.Tls_MinVersion_1_1, "tlsv1.1", false, "Force TLS connections to version 1.1 or higher")
+	flags.BoolVar(&ctx.Tls_MinVersion_1_0, "tlsv1.0", false, "Force TLS connections to version 1.0 or higher")
+	flags.BoolVarP(&ctx.Tls_MinVersion_1_0, "tlsv1", "1", false, "Force TLS connections to version 1.0 or higher")
+	flags.StringVar(&ctx.Tls_MaxVersionString, "tls-max", "", "Force TLS connections to maximum version specified")
+	// flags.BoolVar(&ctx.ForceTryHttp2, "http2", false, "Force trying an HTTP2 connection initially")
+	flags.BoolVarP(&ctx.ConvertPostFormIntoGet, "get", "G", false, "Convert -d/--data and related parameters into GET query string parameters")
 }
 
 func ParseFlags(args []string, ctx *curl.CurlContext) ([]string, *curlerrors.CurlError) {

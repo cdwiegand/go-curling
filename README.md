@@ -44,7 +44,7 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 | `--capath` | yes | **(missing tests)** Loads all files in path and attempts to parse |
 | `-E`/`--cert` | yes | **(missing tests)** |
 | `--compressed` | (default) | turn off via `--no-compressed` |
-| `-K`/`--config` | yes | `ParseArgsWithConfigFile` |
+| `-K`/`--config` | yes | Allows reading config values just like the cli parameters |
 | `-b`/`--cookie` | yes | HTTP cookie string or `@`file-path, specifies initial HTTP cookies |
 | `-c`/`--cookie-jar` | yes | Specifies file to use for ongoing cookies between requests, cannot use curl's native jar files |
 | `-d`/`--data` | yes | Send raw string data name=value OR name=`@`file-path |
@@ -52,19 +52,23 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 | `--data-raw` | yes | Send next parameter exactly as given (does not read `@` file value) |
 | `--data-urlencode` | yes | Send URL encoded data name=value OR name=`@`file-path |
 | `-D`/`--dump-header` | yes | Where to output headers, /dev/null default **(missing tests)** |
-| `-f`/`--fail` | yes | If fail do not emit contents just return fail exit code **(missing tests)** |
-| `--fail-early` | yes | **(missing tests)** |
+| `--expect100-timeout` | yes | Time in decimal seconds to wait for 100-continue header, default 1.0s **(missing tests)** |
+| `-f`/`--fail` | yes | If fail do not emit contents **(missing tests)** |
+| `--fail-early` | yes | Fail IMMEDIATELY at error and do not process remaining URLs on command line **(missing tests)** |
+| `--fail-with-body` | yes | If fail, will still process output as specified on command line |
 | `-F`/`--form` | yes | Send next parameter as a multipart form field (or attach `@file`), name=value OR name=`@`file-path OR name=`<`file-path |
-| `--form-string` | yes | `PostWithMultipartFormRaw3` |
+| `--form-string` | yes | Sends parameter as literal value, no `@` or `<` support |
+| `-G`/`--get` | yes | Pass -d/--data and related parameters as GET query string parameters instead |
 | `-I`/`--head` | yes | Send HEAD request, only emit headers returned, ignore body **(missing tests)** |
 | `-H`/`--header` | yes | Header to append to request in the format `"header: value"` |
 | `-h`/`--help` | yes | **(missing tests)** |
 | `-i`/`--include` | yes | Prepend returned headers to body output **(missing tests)** |
 | `-k`/`--insecure` | yes | Ignore invalid SSL certificates **(missing tests)** |
-| `--json` | yes | `PostJsonInclude` |
+| `--json` | yes | Sends the value as JSON, including setting the content-type appropriately |
 | `-j`/`--junk-session-cookies` | yes | Does not store session cookies after all URLs completed **(missing tests)** |
+| `--no-keepalive` | yes | Disable keepalive **(missing tests)** |
 | `--key` | yes | **(missing tests)** |
-| `-L`/`--location` | yes | `Redirect` |
+| `-L`/`--location` | yes | Allows following redirects to a new location |
 | `--location-trusted` | yes | **(missing tests)** |
 | `--max-redirs` | yes | **(missing tests)** |
 | `--oauth2-bearer` | yes | **(missing tests)** |
@@ -76,10 +80,20 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 | `--proto-default` | yes | **(missing tests)** |
 | `-e`/`--referer` | yes | HTTP referer header **(missing tests)** |
 | `-X`/`--request` | yes | HTTP method to use (generally `GET` unless overridden by other parameters) |
+| `-e`/`--referer` | yes | HTTP referer header **(missing tests)** |
+| `-e`/`--referer` | yes | HTTP referer header **(missing tests)** |
+| `--retry` | yes | Retry X times on specific HTTP errors (408, 429, 500, 502, 503, 504) **(missing tests)** |
+| `--retry-all` | yes | Retry any HTTP error (4xx & 5xx) **(missing tests)** |
+| `--retry-delay` | yes | Retry after X seconds on failures handled by `--retry` **(missing tests)** |
 | `-S`/`--show-error` | yes | Show error info even if silent/fail modes on **(missing tests)** |
 | `-s`/`--silent` | yes | Do not emit any output (unless overridden with `show-error`) **(missing tests)** |
 | `--stderr` | yes | Log errors, /dev/stderr default |
-| `--tr-encoding` | yes | Equivalent of `--compressed` |
+| `--tls-max` | yes | Force TLS connection max version (1.0, 1.1, 1.2, 1.3, default) **(missing tests)** |
+| `-1`/`--tlsv1` | yes | Force TLS connections to at least 1.0 **(missing tests)** |
+| `--tlsv1.0` | yes | Force TLS connections to at least 1.0 **(missing tests)** |
+| `--tlsv1.1` | yes | Force TLS connections to at least 1.1 **(missing tests)** |
+| `--tlsv1.2` | yes | Force TLS connections to at least 1.2 **(missing tests)** |
+| `--tlsv1.3` | yes | Force TLS connections to at least 1.3 **(missing tests)** |
 | `-T`/`--upload-file` | yes | Upload file(s) to given URL(s) 1:1, as PUT, MIME type detected |
 | `--url` | yes | **(missing tests)** |
 | `-u`/`--user` | yes | Username:Password for HTTP Basic Authentication **(missing tests)** |
@@ -183,11 +197,8 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--engine`
 - `--etag-compare`
 - `--etag-save`
-- `--expect100-timeout`
-- `--fail-with-body`
 - `--false-start`
 - `--form-escape`
-- `-G`/`--get`
 - `-g`/`--globoff`
 - `--happy-eyeballs-timeout-ms`
 - `--haproxy-clientip`
@@ -223,7 +234,6 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--no-alpn`
 - `-N`/`--no-buffer`
 - `--no-clobber`
-- `--no-keepalive`
 - `--no-npn`
 - `--no-progress-meter`
 - `--no-sessionid`
@@ -246,10 +256,8 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--remove-on-error`
 - `--request-target`
 - `--resolve`
-- `--retry`
 - `--retry-all-errors`
 - `--retry-connrefused`
-- `--retry-delay`
 - `--retry-max-time`
 - `--service-name`
 - `-Y`/`--speed-limit`
@@ -266,16 +274,11 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--tcp-fastopen`
 - `--tcp-nodelay` *Need to add `no-tcp-nodelay`*
 - `-z`/`--time-cond`
-- `--tls-max`
 - `--tls13-ciphers`
 - `--tlsauthtype`
 - `--tlspassword`
 - `--tlsuser`
-- `-1`/`--tlsv1`
-- `--tlsv1.0`
-- `--tlsv1.1`
-- `--tlsv1.2`
-- `--tlsv1.3`
+- `--tr-encoding`
 - `--trace`
 - `--trace-ascii`
 - `--trace-config`

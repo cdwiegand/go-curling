@@ -111,7 +111,7 @@ func handleFormArg(name string, value string, writer *multipart.Writer) *curlerr
 // -d name=@file
 // -d @file (lines of name=value)
 // -d (--data), --data-raw, --data-binary, --data-urlencoded
-func (ctx *CurlContext) HandleDataArgs() (io.Reader, *curlerrors.CurlError) {
+func (ctx *CurlContext) HandleDataArgs(returnAsGetParams bool) (*bytes.Buffer, *curlerrors.CurlError) {
 	bodyBuf := &bytes.Buffer{}
 	if len(ctx.Data_Json) > 0 {
 		err0 := handleDataArgs_Json(ctx, bodyBuf)
@@ -121,7 +121,7 @@ func (ctx *CurlContext) HandleDataArgs() (io.Reader, *curlerrors.CurlError) {
 		ctx.SetHeaderIfNotSet("Accept", "application/json")
 		ctx.SetHeaderIfNotSet("Content-Type", "application/json")
 		ctx.SetMethodIfNotSet("POST")
-		return io.Reader(bodyBuf), nil
+		return bodyBuf, nil
 	}
 
 	err1 := handleDataArgs_Standard(ctx, bodyBuf)
@@ -144,9 +144,12 @@ func (ctx *CurlContext) HandleDataArgs() (io.Reader, *curlerrors.CurlError) {
 		return nil, err4
 	}
 
-	ctx.SetMethodIfNotSet("POST")
-	ctx.SetHeaderIfNotSet("Content-Type", "application/x-www-form-urlencoded")
-	return io.Reader(bodyBuf), nil
+	if !returnAsGetParams {
+		ctx.SetMethodIfNotSet("POST")
+		ctx.SetHeaderIfNotSet("Content-Type", "application/x-www-form-urlencoded")
+	}
+
+	return bodyBuf, nil
 }
 func (ctx *CurlContext) HasDataArgs() bool {
 	return len(ctx.Data_Binary) > 0 || len(ctx.Data_Encoded) > 0 || len(ctx.Data_RawAsIs) > 0 || len(ctx.Data_Standard) > 0 || len(ctx.Data_Json) > 0

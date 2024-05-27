@@ -76,6 +76,9 @@ func main() {
 			resp, cerr := ctx.GetCompleteResponse(index, client, request)
 			if cerr != nil {
 				lastErrorCode = cerr
+				if resp != nil && len(resp.Responses) > 0 && ctx.FailWithBody {
+					ctx.ProcessResponseToOutputs(index, resp, request)
+				}
 				handleError(cerr, ctx)
 			} else {
 				cerr = ctx.ProcessResponseToOutputs(index, resp, request)

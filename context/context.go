@@ -21,6 +21,7 @@ type CurlContext struct {
 	HttpVerb                           string
 	SilentFail                         bool
 	FailEarly                          bool
+	FailWithBody                       bool // inherent, unless you specify --fail-early or --fail/-f
 	BodyOutput                         []string
 	HeaderOutput                       []string
 	UserAgent                          string
@@ -30,6 +31,8 @@ type CurlContext struct {
 	IsSilent                           bool
 	HeadOnly                           bool
 	EnableCompression                  bool
+	DisableKeepalives                  bool
+	DisableBuffer                      bool
 	Allow301Post                       bool
 	Allow302Post                       bool
 	Allow303Post                       bool
@@ -40,6 +43,7 @@ type CurlContext struct {
 	ConfigFile                         string
 	DoNotUseHostCertificateAuthorities bool
 	DefaultProtocolScheme              string
+	ConvertPostFormIntoGet             bool
 	CaCertFile                         []string
 	CaCertPath                         string
 	ClientCertFile                     string
@@ -63,6 +67,16 @@ type CurlContext struct {
 	Form_MultipartRaw                  []string
 	Headers                            []string
 	HeadersDict                        map[string]string
+	Tls_MinVersion_1_3                 bool
+	Tls_MinVersion_1_2                 bool
+	Tls_MinVersion_1_1                 bool
+	Tls_MinVersion_1_0                 bool
+	Tls_MaxVersionString               string
+	RetryDelaySeconds                  int
+	MaxRetries                         int
+	RetryAllErrors                     bool
+	ForceTryHttp2                      bool
+	Expect100Timeout                   float32
 
 	// internal:
 	filesAlreadyStartedWriting map[string]*os.File
@@ -115,6 +129,23 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 	}
 	if countMutuallyExclusiveActions > 1 {
 		return curlerrors.NewCurlError1(curlerrors.ERROR_INVALID_ARGS, "Cannot include more than one option from: -d/--data*, -F/--form/--form-string, -T/--upload, or -I/--head")
+	}
+
+	countMutuallyExclusiveActions = 0
+	if ctx.Tls_MinVersion_1_0 {
+		countMutuallyExclusiveActions += 1
+	}
+	if ctx.Tls_MinVersion_1_1 {
+		countMutuallyExclusiveActions += 1
+	}
+	if ctx.Tls_MinVersion_1_2 {
+		countMutuallyExclusiveActions += 1
+	}
+	if ctx.Tls_MinVersion_1_3 {
+		countMutuallyExclusiveActions += 1
+	}
+	if countMutuallyExclusiveActions > 1 {
+		return curlerrors.NewCurlError1(curlerrors.ERROR_INVALID_ARGS, "Cannot include more than one option from: --tls1/-1, --tlsv1.1, --tlsv1.2, --tlsv1.3")
 	}
 
 	urls := append(ctx.Urls, extraArgs...)
