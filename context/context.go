@@ -29,7 +29,7 @@ type CurlContext struct {
 	UserAuth                           string
 	IsSilent                           bool
 	HeadOnly                           bool
-	DisableCompression                 bool
+	EnableCompression                  bool
 	Allow301Post                       bool
 	Allow302Post                       bool
 	Allow303Post                       bool
@@ -63,7 +63,9 @@ type CurlContext struct {
 	Form_MultipartRaw                  []string
 	Headers                            []string
 	HeadersDict                        map[string]string
-	filesAlreadyStartedWriting         map[string]*os.File
+
+	// internal:
+	filesAlreadyStartedWriting map[string]*os.File
 }
 
 type CurlOutputWriter interface {

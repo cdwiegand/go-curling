@@ -29,7 +29,7 @@ Not all HTTP-related functionality is supported either, but normal calls like GE
 - Environment variable interpolation ("Variables" in the curl man page) is not supported
 - Command line arguments not listed as supported are not supported
 - You cannot merge "short form" arguments directly with their values, e.g.: `curl -darbitrary https://...` is not supported, you must use `curl -d arbitrary https://...`
-- `no-xxx` form arguments are generally not recognized, unless documented by default their positive version being true (e.g. `--no-fail` doesn't exist as `--fail` is not a default value, but `--no-compressed` does exist because by default HTTP requests permit compression as `--compressed` is inherently default and doesn't exist to turn "on")
+- `no-xxx` form arguments are generally not recognized, unless documented by default their positive version being true (e.g. `--no-fail` doesn't exist as `--fail` is not a default value, but `--no-ca-native` does exist because by default we load the native CA certifications from the underlying OS and so `--ca-native` doesn't exist to turn "on")
 - go-curling does not implement global vs scoped arguments - `-:` / `--next` are not supported
 
 Note that one thing that is now supported is that if you specify multiple URLs, you can specify multiple `-o` or `-D` values and go-curling will honor that, but if you specify more URLs than you have specified outputs, the extra URLs will be processed with the default value for the given flag (content output to stdout).
@@ -79,6 +79,7 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 | `-S`/`--show-error` | yes | Show error info even if silent/fail modes on **(missing tests)** |
 | `-s`/`--silent` | yes | Do not emit any output (unless overridden with `show-error`) **(missing tests)** |
 | `--stderr` | yes | Log errors, /dev/stderr default |
+| `--tr-encoding` | yes | Equivalent of `--compressed` |
 | `-T`/`--upload-file` | yes | Upload file(s) to given URL(s) 1:1, as PUT, MIME type detected |
 | `--url` | yes | **(missing tests)** |
 | `-u`/`--user` | yes | Username:Password for HTTP Basic Authentication **(missing tests)** |
@@ -275,7 +276,6 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--tlsv1.1`
 - `--tlsv1.2`
 - `--tlsv1.3`
-- `--tr-encoding`
 - `--trace`
 - `--trace-ascii`
 - `--trace-config`

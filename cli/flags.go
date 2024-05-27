@@ -55,7 +55,9 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	flags.StringVarP(&ctx.ClientCertFile, "cert", "E", "", "Client certificate (cert or cert + key) to use for authentication to server, with :password after if key is encrypted")
 	flags.StringVar(&ctx.ClientCertKeyFile, "key", "", "Client certificate key to use for authentication to server, with :password after if encrypted")
 	flags.StringVar(&ctx.ClientCertKeyPassword, "key-password", "", "Password to decrypt client certificate key") // NOT UPSTREAM curl!
-	flags.BoolVar(&ctx.DisableCompression, "no-compressed", false, "Disables compression")
+	flags.BoolVar(&ctx.EnableCompression, "compressed", false, "Requests compression")
+	flags.BoolVar(&ctx.EnableCompression, "tr-encoding", false, "Requests compression (obsolete)")
+	flags.MarkHidden("tr-encoding")
 	flags.BoolVarP(&ctx.FollowRedirects, "location", "L", false, "Follow redirects (3xx response Location headers)")
 	flags.IntVar(&ctx.MaxRedirects, "max-redirs", 50, "Maximum 3xx redirects to follow before stopping")
 	flags.StringVar(&ctx.DefaultProtocolScheme, "proto-default", "http", "Specifies default protocol to prepend to URLs")

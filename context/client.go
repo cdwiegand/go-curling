@@ -42,7 +42,7 @@ func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 		customTransport.TLSClientConfig.Certificates = append(customTransport.TLSClientConfig.Certificates, clientCerts...)
 	}
 
-	customTransport.DisableCompression = ctx.DisableCompression
+	customTransport.DisableCompression = !ctx.EnableCompression
 
 	return &http.Client{
 		Transport: customTransport,
@@ -122,9 +122,6 @@ func (ctx *CurlContext) SetupInitialHeadersOnRequest(request *http.Request) {
 	}
 	if ctx.Referer != "" {
 		request.Header.Set("Referer", ctx.Referer)
-	}
-	if ctx.DisableCompression {
-		request.Header.Del("Accept-Encoding")
 	}
 	if request.Header.Get("Accept") == "" {
 		// curl default, so matching
