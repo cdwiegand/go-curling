@@ -20,7 +20,7 @@ func Test_PostWithMultipartForm4_CurlContext(t *testing.T) {
 		}
 	}
 	testRun.SuccessHandlerIndexed = func(json map[string]interface{}, index int, testrun *TestRun) {
-		GenericTestErrorHandler(t, curlerrors.NewCurlError0("Should not succeed as -F does not support directly pulling a @file reference!"))
+		GenericTestErrorHandler(t, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "Should not succeed as -F does not support directly pulling a @file reference!"))
 	}
 	testRun.ErrorHandler = func(err *curlerrors.CurlError, testrun *TestRun) {
 		// ok, it SHOULD fail, this is not a valid request!
@@ -34,7 +34,7 @@ func Test_PostWithMultipartForm4_CmdLine(t *testing.T) {
 		return []string{"https://httpbin.org/post", "-X", "POST", "-F", "@" + testrun.ListInputFiles[0], "-o", testrun.GetOneOutputFile()}
 	}
 	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		GenericTestErrorHandler(t, curlerrors.NewCurlError0("Should not succeed as -F does not support directly pulling a @file reference!"))
+		GenericTestErrorHandler(t, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "Should not succeed as -F does not support directly pulling a @file reference!"))
 	}
 	testRun.ErrorHandler = func(err *curlerrors.CurlError, testrun *TestRun) {
 		// ok, it SHOULD fail, this is not a valid request!

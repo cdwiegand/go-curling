@@ -12,15 +12,40 @@ const ERROR_INVALID_ARGS = -12
 type CurlError struct {
 	ExitCode    int
 	ErrorString string
-	Err         error
 }
 
-func NewCurlError0(errorString string) *CurlError {
-	return &CurlError{-6, errorString, nil}
+type CurlErrorCollection struct {
+	Errors []*CurlError
 }
-func NewCurlError1(exitCode int, errorString string) *CurlError {
-	return &CurlError{exitCode, errorString, nil}
+
+func (err *CurlError) Error() string {
+	return err.ErrorString
 }
-func NewCurlError2(exitCode int, errorString string, err error) *CurlError {
-	return &CurlError{exitCode, errorString, err}
+
+func NewCurlErrorFromError(exitCode int, err error) *CurlError {
+	return &CurlError{exitCode, err.Error()}
+}
+func NewCurlErrorFromString(exitCode int, errorString string) *CurlError {
+	return &CurlError{exitCode, errorString}
+}
+func NewCurlErrorFromStringAndError(exitCode int, errorString string, err error) *CurlError {
+	return &CurlError{exitCode, errorString + ": " + err.Error()}
+}
+
+func (cerrs *CurlErrorCollection) AppendError(exitCode int, err error) {
+	if err != nil {
+		cerr := NewCurlErrorFromError(exitCode, err)
+		cerrs.Errors = append(cerrs.Errors, cerr)
+	}
+}
+func (cerrs *CurlErrorCollection) AppendCurlError(cerr *CurlError) {
+	if cerr != nil {
+		cerrs.Errors = append(cerrs.Errors, cerr)
+	}
+}
+
+func (cerrs *CurlErrorCollection) AppendCurlErrors(cerr *CurlErrorCollection) {
+	if cerr != nil && cerr.Errors != nil && len(cerr.Errors) > 0 {
+		cerrs.Errors = append(cerrs.Errors, cerr.Errors...)
+	}
 }

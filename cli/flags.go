@@ -88,7 +88,7 @@ func ParseFlags(args []string, ctx *curl.CurlContext) ([]string, *curlerrors.Cur
 		if args[i] == "-K" || args[i] == "--config" {
 			moreArgs, err2 := ParseConfigFile(args[i+1])
 			if err2 != nil {
-				return nil, curlerrors.NewCurlError2(curlerrors.ERROR_INVALID_ARGS, "Invalid args/failed to parse flags", err2)
+				return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_INVALID_ARGS, "Invalid args/failed to parse flags", err2)
 			}
 			args = append(args, moreArgs...)
 		}
@@ -99,7 +99,7 @@ func ParseFlags(args []string, ctx *curl.CurlContext) ([]string, *curlerrors.Cur
 	err := flags.Parse(args)
 	extraArgs := flags.Args() // remaining non-parsed args
 	if err != nil {
-		return nil, curlerrors.NewCurlError2(curlerrors.ERROR_INVALID_ARGS, "Invalid args/failed to parse flags", err)
+		return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_INVALID_ARGS, "Invalid args/failed to parse flags", err)
 	}
 	return extraArgs, nil
 }

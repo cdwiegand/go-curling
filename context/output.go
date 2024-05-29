@@ -9,7 +9,7 @@ func (ctx *CurlContext) WriteToFileBytes(file string, body []byte) (err error) {
 		ctx.filesAlreadyStartedWriting = make(map[string]*os.File)
 	}
 
-	if file == "/dev/null" {
+	if file == "" || file == "/dev/null" {
 		// do nothing
 	} else if file == "/dev/stderr" {
 		_, err = os.Stderr.Write(body)

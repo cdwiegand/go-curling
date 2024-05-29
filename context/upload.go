@@ -21,7 +21,7 @@ func (ctx *CurlContext) HandleUploadRawFile(index int) (io.Reader, *curlerrors.C
 		filename := ctx.Upload_File[index]
 		f, err := os.ReadFile(filename)
 		if err != nil {
-			return nil, curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
+			return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 		}
 		mimeType := mime.TypeByExtension(path.Ext(filename))
 		if mimeType == "" {
@@ -57,7 +57,7 @@ func (ctx *CurlContext) HandleFormMultipart() (io.Reader, *curlerrors.CurlError)
 			value := splits[1]
 			handleFormArg(name, value, writer)
 		} else {
-			return nil, curlerrors.NewCurlError1(curlerrors.ERROR_INVALID_ARGS, "I need a name=value or name=@file/path/here")
+			return nil, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "I need a name=value or name=@file/path/here")
 		}
 	}
 
@@ -70,7 +70,7 @@ func (ctx *CurlContext) HandleFormMultipart() (io.Reader, *curlerrors.CurlError)
 			part, _ := writer.CreateFormField(name)
 			part.Write([]byte(value))
 		} else {
-			return nil, curlerrors.NewCurlError1(curlerrors.ERROR_INVALID_ARGS, "I need a name=value")
+			return nil, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "I need a name=value")
 		}
 	}
 
@@ -86,7 +86,7 @@ func handleFormArg(name string, value string, writer *multipart.Writer) *curlerr
 		filename := strings.TrimPrefix(value, "@")
 		valueRaw, err := os.ReadFile(filename)
 		if err != nil {
-			return curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
+			return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 		}
 		shortname := path.Base(filename)
 		part, _ := writer.CreateFormFile(name, shortname)
@@ -95,7 +95,7 @@ func handleFormArg(name string, value string, writer *multipart.Writer) *curlerr
 		filename := strings.TrimPrefix(value, "<")
 		valueRaw, err := os.ReadFile(filename)
 		if err != nil {
-			return curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
+			return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 		}
 		part, _ := writer.CreateFormField(name)
 		part.Write(valueRaw)
@@ -169,7 +169,7 @@ func handleDataArgs_Standard(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerror
 			filename := strings.TrimPrefix(item, "@")
 			fullForm, err := os.ReadFile(filename)
 			if err != nil {
-				return curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
+				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 			}
 			formLines := strings.Split(string(fullForm), "\n")
 			appendDataStrings(bodyBuf, formLines)
@@ -180,7 +180,7 @@ func handleDataArgs_Standard(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerror
 			filename := strings.TrimPrefix(value, "@")
 			valueRaw, err := os.ReadFile(filename)
 			if err != nil {
-				return curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
+				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 			}
 			newLine1 := []byte("\r")
 			newLine2 := []byte("\n")
@@ -207,7 +207,7 @@ func handleDataArgs_Encoded(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors
 			filename := strings.TrimPrefix(item, "@")
 			fullForm, err := os.ReadFile(filename)
 			if err != nil {
-				return curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
+				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 			}
 			formLines := strings.Split(string(fullForm), "\n")
 			for _, item2 := range formLines {
@@ -225,7 +225,7 @@ func handleDataArgs_Encoded(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors
 			filename := strings.TrimPrefix(value, "@")
 			valueRaw, err := os.ReadFile(filename)
 			if err != nil {
-				return curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
+				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 			}
 			formBody.Add(name, string(valueRaw))
 		} else if idxEqual > -1 { // name=value
@@ -274,7 +274,7 @@ func handleDataArgs_Binary(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.
 			filename := strings.TrimPrefix(item, "@")
 			fullForm, err := os.ReadFile(filename)
 			if err != nil {
-				return curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
+				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 			}
 			appendDataBytes(bodyBuf, fullForm)
 		} else if idxEqual > -1 && idxEqual == idxEqualAt { // name=@value - value is file path for the content
@@ -284,7 +284,7 @@ func handleDataArgs_Binary(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.
 			filename := strings.TrimPrefix(value, "@")
 			valueRaw, err := os.ReadFile(filename)
 			if err != nil {
-				return curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
+				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 			}
 			appendDataString(bodyBuf, name+"=")
 			bodyBuf.Write(valueRaw) // already wrote the [&]name= part, just add value directly

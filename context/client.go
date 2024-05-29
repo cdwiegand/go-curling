@@ -44,7 +44,7 @@ func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 	if ctx.Tls_MaxVersionString != "" {
 		maxTls, err := GetTlsVersionValue(ctx.Tls_MaxVersionString)
 		if err != nil {
-			return nil, curlerrors.NewCurlError2(curlerrors.ERROR_INVALID_ARGS, fmt.Sprintf("Failed to parse TLS version %s", ctx.Tls_MaxVersionString), err)
+			return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_INVALID_ARGS, fmt.Sprintf("Failed to parse TLS version %s", ctx.Tls_MaxVersionString), err)
 		}
 		if maxTls > 0 {
 			customTransport.TLSClientConfig.MaxVersion = maxTls
@@ -182,7 +182,7 @@ func (ctx *CurlContext) SetCookieHeadersOnRequest(request *http.Request) *curler
 			if !strings.Contains(cookie, "=") { // curl does this, so... ugh, wish golang had .Net's System.IO.Path.Exists() in a safe way
 				f, err := os.ReadFile(cookie)
 				if err != nil {
-					return curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", cookie), err)
+					return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", cookie), err)
 				}
 				request.Header.Add("Cookie", string(f))
 			} else {
@@ -235,7 +235,7 @@ func (ctx *CurlContext) GetCompleteResponse(index int, client *http.Client, requ
 
 		if respReal.Error != nil {
 			respsReal.IsError = true
-			cerr = curlerrors.NewCurlError2(curlerrors.ERROR_NO_RESPONSE, fmt.Sprintf("Was unable to query URL %v", request.URL), respReal.Error)
+			cerr = curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_NO_RESPONSE, fmt.Sprintf("Was unable to query URL %v", request.URL), respReal.Error)
 			return respsReal, cerr
 		}
 
@@ -295,22 +295,23 @@ func (ctx *CurlContext) canStatusCodeRetry(statusCode int) bool {
 	}
 }
 
-func (ctx *CurlContext) ProcessResponseToOutputs(index int, resp *CurlResponses, request *http.Request) (cerr *curlerrors.CurlError) {
+func (ctx *CurlContext) ProcessResponseToOutputs(index int, resp *CurlResponses, request *http.Request) (cerrs *curlerrors.CurlErrorCollection) {
+	cerrs = new(curlerrors.CurlErrorCollection)
 	err2 := ctx.Jar.Save() // is ignored if jar's filename is empty
 	if err2 != nil {
-		cerr = curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_WRITE_FILE, "Failed to save cookies to jar", err2)
+		cerrs.AppendCurlError(curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_WRITE_FILE, "Failed to save cookies to jar", err2))
 		// continue anyways!
 	}
 
 	if resp.IsError {
 		// error
 		if !ctx.SilentFail {
-			ctx.EmitResponseToOutputs(index, resp, request)
+			cerrs.AppendCurlErrors(ctx.EmitResponseToOutputs(index, resp, request))
 		}
-		os.Exit(6) // arbitrary
+		os.Exit(curlerrors.ERROR_STATUS_CODE_FAILURE) // arbitrary
 	} else {
 		// success
-		ctx.EmitResponseToOutputs(index, resp, request)
+		cerrs.AppendCurlErrors(ctx.EmitResponseToOutputs(index, resp, request))
 	}
 	return
 }

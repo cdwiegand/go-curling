@@ -20,7 +20,6 @@
 package main
 
 import (
-	"errors"
 	"os"
 
 	curlcli "github.com/cdwiegand/go-curling/cli"
@@ -34,7 +33,8 @@ func main() {
 
 	nonFlagArgs, cerr := curlcli.ParseFlags(os.Args[1:], ctx)
 	if cerr != nil {
-		handleErrorAndExit(cerr, ctx)
+		reportError(cerr, ctx)
+		os.Exit(cerr.ExitCode)
 		return
 	}
 
@@ -46,21 +46,23 @@ func main() {
 
 	cerr = ctx.SetupContextForRun(nonFlagArgs)
 	if cerr != nil {
-		handleErrorAndExit(cerr, ctx)
+		reportError(cerr, ctx)
+		os.Exit(cerr.ExitCode)
 		return
 	}
 
 	// must be after version check
 	if len(ctx.Urls) == 0 {
-		err := errors.New("no valid URL was not found on the command line")
-		cerr = curlerrors.NewCurlError2(curlerrors.ERROR_STATUS_CODE_FAILURE, "Parse URL failed", err)
-		handleErrorAndExit(cerr, ctx)
+		cerr = curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "no valid URL was not found on the command line, try 'go-curling --help' for usage")
+		reportError(cerr, ctx)
+		os.Exit(cerr.ExitCode)
 		return
 	}
 
 	client, cerr := ctx.BuildClient()
 	if cerr != nil {
-		handleErrorAndExit(cerr, ctx)
+		reportError(cerr, ctx)
+		os.Exit(cerr.ExitCode)
 		return
 	}
 
@@ -70,7 +72,8 @@ func main() {
 		if cerr != nil {
 			lastErrorCode = cerr
 			if ctx.FailEarly {
-				handleError(cerr, ctx)
+				reportError(cerr, ctx)
+				os.Exit(cerr.ExitCode)
 			}
 		} else {
 			resp, cerr := ctx.GetCompleteResponse(index, client, request)
@@ -79,12 +82,24 @@ func main() {
 				if resp != nil && len(resp.Responses) > 0 && ctx.FailWithBody {
 					ctx.ProcessResponseToOutputs(index, resp, request)
 				}
-				handleError(cerr, ctx)
+				reportError(cerr, ctx)
+				if cerr.ExitCode != 0 && ctx.FailEarly {
+					os.Exit(cerr.ExitCode)
+				}
 			} else {
-				cerr = ctx.ProcessResponseToOutputs(index, resp, request)
-				if cerr != nil {
-					lastErrorCode = cerr
-					handleError(cerr, ctx)
+				cerrs := ctx.ProcessResponseToOutputs(index, resp, request)
+				if cerrs != nil && len(cerrs.Errors) > 0 {
+					forceExitCode := 0
+					for _, h := range cerrs.Errors {
+						lastErrorCode = h
+						reportError(cerr, ctx)
+						if h.ExitCode != 0 {
+							forceExitCode = h.ExitCode
+						}
+					}
+					if forceExitCode != 0 && ctx.FailEarly {
+						os.Exit(forceExitCode)
+					}
 				}
 			}
 		}
@@ -95,22 +110,11 @@ func main() {
 	}
 }
 
-func handleErrorAndExit(err *curlerrors.CurlError, ctx *curl.CurlContext) {
-	handleError(err, ctx)
-	os.Exit(err.ExitCode)
-}
-func handleError(err *curlerrors.CurlError, ctx *curl.CurlContext) {
+func reportError(err *curlerrors.CurlError, ctx *curl.CurlContext) {
 	if err == nil {
 		return
 	}
-	entry := err.ErrorString
-	if entry == "" {
-		entry = "Error"
-	}
-	if err.Err != nil {
-		entry += ": "
-		entry += err.Err.Error()
-	}
+	entry := "Error: " + err.ErrorString + "."
 
 	if err.ExitCode == curlerrors.ERROR_CANNOT_WRITE_TO_STDOUT {
 		// don't recurse (it called us to report the failure to write errors to a normal file)
@@ -118,10 +122,6 @@ func handleError(err *curlerrors.CurlError, ctx *curl.CurlContext) {
 	}
 
 	if (!ctx.IsSilent && !ctx.SilentFail) || !ctx.ShowErrorEvenIfSilent {
-		ctx.WriteToFileBytes(ctx.ErrorOutput, []byte(entry)) // this feels... bad practice - can we move this to some kind of helper or something??
-	}
-
-	if err.ExitCode != 0 && ctx.FailEarly {
-		os.Exit(err.ExitCode)
+		ctx.WriteToFileBytes(ctx.ErrorOutput, []byte(entry))
 	}
 }

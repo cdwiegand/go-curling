@@ -129,7 +129,7 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 		countMutuallyExclusiveActions += 1
 	}
 	if countMutuallyExclusiveActions > 1 {
-		return curlerrors.NewCurlError1(curlerrors.ERROR_INVALID_ARGS, "Cannot include more than one option from: -d/--data*, -F/--form/--form-string, -T/--upload, or -I/--head")
+		return curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "Cannot include more than one option from: -d/--data*, -F/--form/--form-string, -T/--upload, or -I/--head")
 	}
 
 	countMutuallyExclusiveActions = 0
@@ -146,7 +146,7 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 		countMutuallyExclusiveActions += 1
 	}
 	if countMutuallyExclusiveActions > 1 {
-		return curlerrors.NewCurlError1(curlerrors.ERROR_INVALID_ARGS, "Cannot include more than one option from: --tls1/-1, --tlsv1.1, --tlsv1.2, --tlsv1.3")
+		return curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "Cannot include more than one option from: --tls1/-1, --tlsv1.1, --tlsv1.2, --tlsv1.3")
 	}
 
 	urls := append(ctx.Urls, extraArgs...)
@@ -163,7 +163,7 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 
 			u, err := url.Parse(s)
 			if err != nil {
-				return curlerrors.NewCurlError2(curlerrors.ERROR_INVALID_URL, fmt.Sprintf("Could not parse url: %q", s), err)
+				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_INVALID_URL, fmt.Sprintf("Could not parse url: %q", s), err)
 			}
 
 			if u.Host == "" {
@@ -180,7 +180,7 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 		PersistSessionCookies: !ctx.JunkSessionCookies,
 	})
 	if err != nil {
-		return curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, "Unable to create cookie jar", err)
+		return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, "Unable to create cookie jar", err)
 	}
 	ctx.Jar = jar
 
@@ -226,15 +226,20 @@ func (ctx *CurlContext) GetNextOutputsFromContext(index int) (headerOutput strin
 	return
 }
 
-func (ctx *CurlContext) EmitResponseToOutputs(index int, resp *CurlResponses, request *http.Request) {
+func (ctx *CurlContext) EmitResponseToOutputs(index int, resp *CurlResponses, request *http.Request) (cerrs *curlerrors.CurlErrorCollection) {
+	cerrs = new(curlerrors.CurlErrorCollection)
 	for i := 0; i < len(resp.Responses); i++ {
 		isLast := i == len(resp.Responses)-1
-		ctx.EmitSingleHttpResponseToOutputs(index, resp.Responses[i].HttpResponse, request, !isLast)
+		cerr := ctx.EmitSingleHttpResponseToOutputs(index, resp.Responses[i].HttpResponse, request, !isLast)
+		cerrs.AppendCurlErrors(cerr)
 		request = nil
 	}
+	return cerrs
 }
 
-func (ctx *CurlContext) EmitSingleHttpResponseToOutputs(index int, resp *http.Response, request *http.Request, headersOnly bool) {
+func (ctx *CurlContext) EmitSingleHttpResponseToOutputs(index int, resp *http.Response, request *http.Request, headersOnly bool) (cerrs *curlerrors.CurlErrorCollection) {
+	cerrs = new(curlerrors.CurlErrorCollection)
+
 	// emit body
 	var respBody []byte
 	if !headersOnly && resp.Body != nil {
@@ -256,22 +261,23 @@ func (ctx *CurlContext) EmitSingleHttpResponseToOutputs(index int, resp *http.Re
 	headerOutput, contentOutput := ctx.GetNextOutputsFromContext(index)
 
 	if ctx.HeadOnly {
-		ctx.WriteToFileBytes(headerOutput, headerBody)
+		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(headerOutput, headerBody))
 	} else if ctx.IncludeHeadersInMainOutput {
 		bytesOut := appendByteArrays(headerBody, seperator, respBody)
-		ctx.WriteToFileBytes(contentOutput, bytesOut) // do all at once
+		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(contentOutput, bytesOut)) // do all at once
 		if headerOutput != contentOutput && respBody != nil {
-			ctx.WriteToFileBytes(headerOutput, headerBody)
+			cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(headerOutput, headerBody))
 		}
 	} else if headerOutput == contentOutput {
 		bytesOut := appendByteArrays(headerBody, seperator, respBody)
-		ctx.WriteToFileBytes(contentOutput, bytesOut) // do all at once
+		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(contentOutput, bytesOut)) // do all at once
 	} else {
-		ctx.WriteToFileBytes(headerOutput, headerBody)
+		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(headerOutput, headerBody))
 		if respBody != nil {
-			ctx.WriteToFileBytes(contentOutput, respBody)
+			cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(contentOutput, respBody))
 		}
 	}
+	return cerrs
 }
 
 func appendStrings(resp []byte, sepBody []byte, lines []string) []byte {

@@ -135,20 +135,22 @@ func (run *TestRun) Run() {
 			return
 		}
 
-		cerr = ctx.ProcessResponseToOutputs(index, resp, request)
-		if cerr != nil {
-			run.ErrorHandler(cerr, run)
+		cerrs := ctx.ProcessResponseToOutputs(index, resp, request)
+		if cerrs != nil {
+			for _, h := range cerrs.Errors {
+				run.ErrorHandler(h, run)
+			}
 			return
 		}
 
 		if index >= len(run.ListOutputFiles) {
-			run.ErrorHandler(curlerrors.NewCurlError1(curlerrors.ERROR_STATUS_CODE_FAILURE, "Failed to parse JSON"), run)
+			run.ErrorHandler(curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "Failed to parse JSON"), run)
 			return
 		}
 
 		jsonObj, rawJson, err := curlcommontests.ReadJson(run.ListOutputFiles[index])
 		if err != nil {
-			run.ErrorHandler(curlerrors.NewCurlError2(curlerrors.ERROR_STATUS_CODE_FAILURE, "Failed to parse JSON", err), run)
+			run.ErrorHandler(curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_STATUS_CODE_FAILURE, "Failed to parse JSON", err), run)
 			return
 		}
 
@@ -248,7 +250,7 @@ func (run *TestRun) RunAgainstCurlCli() {
 	for index := range run.ListOutputFiles {
 		json, rawJson, err := curlcommontests.ReadJson(run.ListOutputFiles[index])
 		if err != nil {
-			run.ErrorHandler(curlerrors.NewCurlError2(curlerrors.ERROR_STATUS_CODE_FAILURE, "Failed to parse JSON", err), run)
+			run.ErrorHandler(curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_STATUS_CODE_FAILURE, "Failed to parse JSON", err), run)
 			return
 		}
 

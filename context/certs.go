@@ -27,7 +27,7 @@ func (ctx *CurlContext) BuildClientCertificates() ([]tls.Certificate, *curlerror
 		}
 		pemBytes, error := os.ReadFile(ctx.ClientCertFile)
 		if error != nil && ctx.FailEarly {
-			return nil, curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to open file %s", ctx.ClientCertFile), error)
+			return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to open file %s", ctx.ClientCertFile), error)
 		}
 		pemBlocks = append(pemBlocks, extractPemBlocks(pemBytes, true)...)
 	}
@@ -40,7 +40,7 @@ func (ctx *CurlContext) BuildClientCertificates() ([]tls.Certificate, *curlerror
 		}
 		pemBytes, error := os.ReadFile(ctx.ClientCertKeyFile)
 		if error != nil && ctx.FailEarly {
-			return nil, curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to open file %s", ctx.ClientCertKeyFile), error)
+			return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to open file %s", ctx.ClientCertKeyFile), error)
 		}
 		pemBlocks = append(pemBlocks, extractPemBlocks(pemBytes, true)...)
 	}
@@ -52,7 +52,7 @@ func (ctx *CurlContext) BuildClientCertificates() ([]tls.Certificate, *curlerror
 		for _, h := range pemBlocks {
 			cert.PrivateKey, keyErr = convertPrivateKeyBlock(h, ctx.ClientCertKeyPassword)
 			if keyErr != nil && ctx.FailEarly {
-				return nil, curlerrors.NewCurlError2(curlerrors.ERROR_SSL_SYSTEM_FAILURE, "Unable to decrypt private key", keyErr)
+				return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_SSL_SYSTEM_FAILURE, "Unable to decrypt private key", keyErr)
 			}
 			if cert.PrivateKey != nil {
 				ret = append(ret, cert)
@@ -72,7 +72,7 @@ func (ctx *CurlContext) BuildRootCAsPool() (*x509.CertPool, *curlerrors.CurlErro
 	} else {
 		pool, err = x509.SystemCertPool()
 		if err != nil && ctx.FailEarly {
-			return nil, curlerrors.NewCurlError2(curlerrors.ERROR_SSL_SYSTEM_FAILURE, "Failed to load system CA", err)
+			return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_SSL_SYSTEM_FAILURE, "Failed to load system CA", err)
 		}
 	}
 
@@ -89,14 +89,14 @@ func (ctx *CurlContext) BuildRootCAsPool() (*x509.CertPool, *curlerrors.CurlErro
 			return nil
 		})
 		if error != nil && ctx.FailEarly {
-			return nil, curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to open CA cert path %s", ctx.CaCertPath), error)
+			return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to open CA cert path %s", ctx.CaCertPath), error)
 		}
 	}
 
 	for _, h := range ctx.CaCertFile {
 		caBytes, error := os.ReadFile(h)
 		if error != nil && ctx.FailEarly {
-			return nil, curlerrors.NewCurlError2(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to open file %s", h), error)
+			return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to open file %s", h), error)
 		}
 		pool.AppendCertsFromPEM(caBytes)
 	}
