@@ -14,6 +14,7 @@ import (
 )
 
 const DEFAULT_OUTPUT = "/dev/stdout"
+const DEFAULT_STDERR = "/dev/stderr"
 
 type CurlContext struct {
 	Version                            bool
@@ -210,11 +211,15 @@ func (ctx *CurlContext) SetHeaderIfNotSet(headerName string, headerValue string)
 func (ctx *CurlContext) GetNextOutputsFromContext(index int) (headerOutput string, contentOutput string) {
 	if len(ctx.BodyOutput) > index {
 		contentOutput = standardizeFileName(ctx.BodyOutput[index])
-	} else {
+	} else if len(ctx.BodyOutput) == 1 {
+		contentOutput = standardizeFileName(ctx.BodyOutput[0])
+	} else if len(ctx.BodyOutput) == 1 {
 		contentOutput = DEFAULT_OUTPUT
 	}
 	if len(ctx.HeaderOutput) > index {
 		headerOutput = standardizeFileName(ctx.HeaderOutput[index])
+	} else if len(ctx.HeaderOutput) == 1 {
+		headerOutput = standardizeFileName(ctx.HeaderOutput[0])
 	} else {
 		headerOutput = ""
 	}

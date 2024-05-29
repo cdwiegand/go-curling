@@ -22,7 +22,7 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	empty := []string{}
 	flags.BoolVarP(&ctx.Version, "version", "V", false, "Return version and exit")
 	flags.BoolVarP(&ctx.Verbose, "verbose", "v", false, "Logs all headers, and body to output")
-	flags.StringVar(&ctx.ErrorOutput, "stderr", "stderr", "Log errors to this replacement for stderr")
+	flags.StringVar(&ctx.ErrorOutput, "stderr", curl.DEFAULT_STDERR, "Log errors to this replacement for stderr")
 	flags.StringVarP(&ctx.HttpVerb, "request", "X", "", "HTTP method to use (usually GET unless otherwise modified by other parameters)")
 	flags.StringArrayVarP(&ctx.BodyOutput, "output", "o", []string{curl.DEFAULT_OUTPUT}, "Where to output results")
 	flags.StringArrayVarP(&ctx.HeaderOutput, "dump-header", "D", []string{}, "Where to output headers (not on by default)")
