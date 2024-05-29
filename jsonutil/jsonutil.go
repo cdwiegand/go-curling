@@ -18,9 +18,9 @@ func Equal(vx, vy interface{}, skipCheckFilter func(string) bool) bool {
 	case map[string]interface{}:
 		y := vy.(map[string]interface{})
 
-		if len(x) != len(y) {
+		/*if len(x) != len(y) {
 			return false
-		}
+		} // cannot optimize this early if we have filter func! */
 
 		for k, v := range x {
 			if skipCheckFilter(k) {

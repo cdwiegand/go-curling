@@ -110,9 +110,9 @@ func main() {
 	}
 }
 
-func reportError(err *curlerrors.CurlError, ctx *curl.CurlContext) {
+func reportError(err *curlerrors.CurlError, ctx *curl.CurlContext) string {
 	if err == nil {
-		return
+		return ""
 	}
 	entry := "Error: " + err.ErrorString + "."
 
@@ -124,4 +124,6 @@ func reportError(err *curlerrors.CurlError, ctx *curl.CurlContext) {
 	if (!ctx.IsSilent && !ctx.SilentFail) || !ctx.ShowErrorEvenIfSilent {
 		ctx.WriteToFileBytes(ctx.ErrorOutput, []byte(entry))
 	}
+
+	return entry
 }

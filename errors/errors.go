@@ -1,4 +1,4 @@
-package context
+package errors
 
 const ERROR_SSL_SYSTEM_FAILURE = -5
 const ERROR_STATUS_CODE_FAILURE = -6
