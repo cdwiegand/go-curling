@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	curlcli "github.com/cdwiegand/go-curling/cli"
@@ -18,19 +19,20 @@ import (
 )
 
 type TestRun struct {
-	ListOutputFiles          []string
-	ListInputFiles           []string
-	ContextBuilder           func(*TestRun) *curl.CurlContext
-	CmdLineBuilder           func(*TestRun) []string
-	CmdLineBuilderCurl       func(*TestRun) []string
-	SuccessHandler           func(map[string]interface{}, *TestRun)
-	SuccessHandlerIndexed    func(map[string]interface{}, int, *TestRun)
-	SuccessHandlerIndexedRaw func(map[string]interface{}, string, int, *TestRun)
-	ErrorHandler             func(*curlerrors.CurlError, *TestRun)
-	TempDir                  string
-	Testing                  *testing.T
-	DoNotTestAgainstCurl     bool
-	Responses                *curl.CurlResponses
+	ListOutputFiles           []string
+	ListInputFiles            []string
+	ContextBuilder            func(*TestRun) *curl.CurlContext
+	CmdLineBuilder            func(*TestRun) []string
+	CmdLineBuilderCurl        func(*TestRun) []string
+	SuccessHandler            func(map[string]interface{}, *TestRun)
+	SuccessHandlerIndexed     func(map[string]interface{}, int, *TestRun)
+	SuccessHandlerIndexedRaw  func(map[string]interface{}, string, int, *TestRun)
+	ErrorHandler              func(*curlerrors.CurlError, *TestRun)
+	TempDir                   string
+	Testing                   *testing.T
+	DoNotTestAgainstCurl      bool
+	SkipCompareJsonToRealCurl bool
+	Responses                 *curl.CurlResponses
 }
 
 func BuildTestRun(t *testing.T) *TestRun {
@@ -120,6 +122,9 @@ func (run *TestRun) RunTestRun() {
 		return
 	}
 
+	var jsonGot []map[string]interface{}
+	var rawJsonsGot []string
+
 	for index := range ctx.Urls {
 		request, cerr := ctx.BuildHttpRequest(ctx.Urls[index], index, true, true)
 		if cerr != nil {
@@ -148,6 +153,9 @@ func (run *TestRun) RunTestRun() {
 		}
 
 		jsonObj, rawJson, err := ReadJson(run.ListOutputFiles[index])
+		jsonGot = append(jsonGot, jsonObj)
+		rawJsonsGot = append(rawJsonsGot, rawJson)
+
 		if err != nil {
 			run.ErrorHandler(curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_STATUS_CODE_FAILURE, "Failed to parse JSON", err), run)
 			return
@@ -162,14 +170,19 @@ func (run *TestRun) RunTestRun() {
 		if run.SuccessHandlerIndexedRaw != nil {
 			run.SuccessHandlerIndexedRaw(jsonObj, rawJson, index, run)
 		}
+	}
 
-		if run.CmdLineBuilder != nil && args != nil && !run.DoNotTestAgainstCurl {
-			// test curl cli output compared to us
-			if run.CmdLineBuilderCurl != nil {
-				CompareCurlCliOutput(run, run.CmdLineBuilderCurl(run), jsonObj, rawJson)
-			} else {
-				CompareCurlCliOutput(run, args, jsonObj, rawJson)
-			}
+	if run.CmdLineBuilder != nil && args != nil && !run.DoNotTestAgainstCurl {
+		// test curl cli output compared to us
+		var errCurl error
+		if run.CmdLineBuilderCurl != nil {
+			errCurl = CompareCurlCliOutput(run, run.CmdLineBuilderCurl(run), jsonGot, rawJsonsGot)
+		} else {
+			errCurl = CompareCurlCliOutput(run, args, jsonGot, rawJsonsGot)
+		}
+		if errCurl != nil {
+			run.ErrorHandler(curlerrors.NewCurlErrorFromError(curlerrors.ERROR_STATUS_CODE_FAILURE, errCurl), run)
+			return
 		}
 	}
 }
@@ -192,59 +205,103 @@ func ReadJson(file string) (res map[string]interface{}, raw string, err error) {
 	return res, raw, nil
 }
 
-func CompareCurlCliOutput(run *TestRun, args []string, myJsonObj map[string]interface{}, myJsonRaw string) error {
-	var cmd *exec.Cmd
-	if runtime.GOOS == "windows" {
-		//moreargs := append([]string{"curl"}, args...)
-		//cmd = exec.Command("wsl", moreargs...)
-		return nil // can't run on windows, wsl curl c:\users\etc.. just munges and creates a weird local file and tests "always" pass... :(
-	} else {
-		cmd = exec.Command("curl", args...)
-	}
+func CompareCurlCliOutput(run *TestRun, args []string, myJsonObjs []map[string]interface{}, myJsonRaws []string) error {
+	cmd, _, outputs := run.FixLinuxRunIfWindowsToWslCurlRun(args)
 
 	curlerr := cmd.Run()
 	if curlerr != nil {
-		return curlerr
+		return errors.New("Error running @[" + cmd.Path + "] " + strings.Join(cmd.Args, " ") + ": " + curlerr.Error())
 	}
 
-	curlJsonObj, curlJsonRaw, err := ReadJson(run.ListOutputFiles[0])
-	if err != nil {
-		return err
-	}
-
-	// compare, with specific differences permitted:
-	/*
-		{
-		  "args": {},
-		  "data": "@/tmp/0.in.tmp",
-		  "files": {},
-		  "form": {},
-		  "headers": {
-		    "Accept": "application/json",
-		    "Accept-Encoding": "gzip",
-		    "Content-Length": "90",
-		    "Content-Type": "application/json",
-		    "Host": "httpbin.org",
-		    "User-Agent": "Go-http-client/2.0",                             <----- this can be different
-		    "X-Amzn-Trace-Id": "Root=1-664d77a1-75a4de3a1784d8135d044b0f"   <----- this can be different
-		  },
-		  "json": null,
-		  "origin": "73.203.21.18",
-		  "url": "https://httpbin.org/post"
+	for i, h := range outputs {
+		curlJsonObj, curlJsonRaw, err := ReadJson(h)
+		if err != nil {
+			return err
 		}
-	*/
 
-	if !jsonutil.Equal(myJsonObj, curlJsonObj, func(path string) bool {
-		if path == "X-Amzn-Trace-Id" || path == "User-Agent" {
-			return true
+		if run.SuccessHandler != nil {
+			run.SuccessHandler(curlJsonObj, run)
 		}
-		return false
-	}) {
-		return errors.New("json outputs did not match between curl and go-curling:\n\ngo-curling output:\n" + myJsonRaw + "\n\ncurl output:\n" + curlJsonRaw)
+		if run.SuccessHandlerIndexed != nil {
+			run.SuccessHandlerIndexed(curlJsonObj, i, run)
+		}
+		if run.SuccessHandlerIndexedRaw != nil {
+			run.SuccessHandlerIndexedRaw(curlJsonObj, curlJsonRaw, i, run)
+		}
+
+		if !run.SkipCompareJsonToRealCurl {
+			// compare, with specific differences permitted:
+			/*
+				{
+				  "args": {},
+				  "data": "@/tmp/0.in.tmp",
+				  "files": {},
+				  "form": {},
+				  "headers": {
+				    "Accept": "application/json",
+				    "Accept-Encoding": "gzip",
+				    "Content-Length": "90",
+				    "Content-Type": "application/json",
+				    "Host": "httpbin.org",
+				    "User-Agent": "Go-http-client/2.0",                             <----- this can be different
+				    "X-Amzn-Trace-Id": "Root=1-664d77a1-75a4de3a1784d8135d044b0f"   <----- this can be different
+				  },
+				  "json": null,
+				  "origin": "73.203.21.18",
+				  "url": "https://httpbin.org/post"
+				}
+			*/
+
+			if !jsonutil.Equal(myJsonObjs[i], curlJsonObj, func(path string) bool {
+				if path == "X-Amzn-Trace-Id" || path == "User-Agent" || path == "Content-Type" || path == "Content-Length" {
+					return true
+				}
+				return false
+			}) {
+				return errors.New("json outputs did not match between curl and go-curling:\n\ngo-curling output:\n" + myJsonRaws[i] + "\n\ncurl output:\n" + curlJsonRaw)
+			}
+		}
 	}
 	return nil
 }
 
+func (run *TestRun) FixLinuxRunIfWindowsToWslCurlRun(args []string) (cmd *exec.Cmd, inputs []string, outputs []string) {
+	cmd = exec.Command("curl", args...)
+	if runtime.GOOS == "windows" { // seriously, Microsoft?? Kill the curl powershell "alias"
+		cmd = exec.Command("curl.exe", args...)
+	}
+	inputs = run.ListInputFiles
+	outputs = run.ListOutputFiles
+	return
+}
+
+/*
+	func (run *TestRun) FixLinuxRunIfWindowsToWslCurlRun(args []string) (cmd *exec.Cmd, inputs []string, outputs []string) {
+		cmd = exec.Command("curl", args...)
+		inputs = run.ListInputFiles
+		outputs = run.ListOutputFiles
+
+		if runtime.GOOS == "windows" {
+			moreargs := []string{"--cd", run.TempDir, "--shell-type", "none", "curl"} // --shell-type none required for zsh at least
+			for _, origParam := range args {
+				filePrefix := ""
+				paramValueNoPrefix := origParam
+				if origParam[0:1] == "@" || origParam[0:1] == ">" {
+					filePrefix = origParam[0:1]
+					paramValueNoPrefix = origParam[1:]
+				}
+				if slices.Index(outputs, paramValueNoPrefix) > -1 || slices.Index(inputs, paramValueNoPrefix) > -1 {
+					moreargs = append(moreargs, filePrefix+filepath.Base(origParam)) // must remap
+				} else {
+					moreargs = append(moreargs, origParam)
+				}
+			}
+			args = moreargs
+			cmd = exec.Command("wsl", moreargs...)
+		}
+		return cmd, inputs, outputs
+	}
+*/
 func (run *TestRun) RunTestRunAgainstCurlCli() {
 	var args []string
 
@@ -254,18 +311,16 @@ func (run *TestRun) RunTestRunAgainstCurlCli() {
 		run.Testing.Fatal("Forgot to add CmdLineBuilder to 'curl' CLI test!")
 	}
 
-	cmd := exec.Command("curl", args...)
+	cmd, _, outputs := run.FixLinuxRunIfWindowsToWslCurlRun(args)
+
 	err := cmd.Run()
-	for _, v := range run.ListOutputFiles {
-		defer os.Remove(v)
-	}
 
 	if err != nil {
 		run.Testing.Fatal(err)
 	}
 
-	for index := range run.ListOutputFiles {
-		json, rawJson, err := ReadJson(run.ListOutputFiles[index])
+	for index := range outputs {
+		json, rawJson, err := ReadJson(outputs[index])
 		if err != nil {
 			run.ErrorHandler(curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_STATUS_CODE_FAILURE, "Failed to parse JSON", err), run)
 			return

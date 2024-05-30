@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
@@ -36,6 +37,6 @@ func Test_PostWithFilesystemForm_CmdLine(t *testing.T) {
 func helper_PostWithFilesystemForm_success(json map[string]interface{}, testrun *curltestharness.TestRun) {
 	t := testrun.Testing
 	assert.NotNil(t, json["form"])
-	form := json["form"].(map[string]any)
-	assert.EqualValues(t, "one", form["test"])
+	form := json["form"].(map[string]interface{})
+	assert.True(t, strings.HasPrefix(form["test"].(string), "@"))
 }

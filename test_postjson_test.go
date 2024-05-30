@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"testing"
 
@@ -57,9 +58,16 @@ func Test_PostJsonDoubleQuotes_CmdLine(t *testing.T) {
 	}
 	testRun.RunTestRun()
 }
-func helper_PostJsonInclude_success(json map[string]interface{}, testrun *curltestharness.TestRun) {
+func helper_PostJsonInclude_success(jsonIn map[string]interface{}, testrun *curltestharness.TestRun) {
 	t := testrun.Testing
-	assert.NotNil(t, json["data"])
-	data := json["data"].(string)
-	assert.EqualValues(t, "@"+testrun.ListInputFiles[0], data)
+
+	assert.NotNil(t, jsonIn["json"])
+	jsonJson := jsonIn["json"].(map[string]interface{})
+	assert.EqualValues(t, "one", jsonJson["test"])
+
+	assert.NotNil(t, jsonIn["data"])
+	dataJsonStr := jsonIn["data"].(string)
+	var dataJsonObj map[string]interface{}
+	json.Unmarshal([]byte(dataJsonStr), &dataJsonObj)
+	assert.EqualValues(t, "one", dataJsonObj["test"])
 }

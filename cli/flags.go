@@ -94,7 +94,7 @@ func ParseFlags(args []string, ctx *curl.CurlContext) ([]string, *curlerrors.Cur
 		}
 	}
 
-	flags := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	flags := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	SetupFlagArgs(ctx, flags)
 	err := flags.Parse(args)
 	extraArgs := flags.Args() // remaining non-parsed args

@@ -149,6 +149,14 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 		return curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "Cannot include more than one option from: --tls1/-1, --tlsv1.1, --tlsv1.2, --tlsv1.3")
 	}
 
+	if len(extraArgs) > 0 {
+		for _, h := range extraArgs {
+			if strings.HasPrefix(h, "-") {
+				return curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "Unrecognized argument: "+h)
+			}
+		}
+	}
+
 	urls := append(ctx.Urls, extraArgs...)
 	ctx.Urls = []string{}
 
@@ -158,7 +166,7 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 				// url is /something/here - assume localhost!
 				s = ctx.DefaultProtocolScheme + "://localhost" + s
 			} else if !strings.Contains(s, "://") { // ok, wasn't a root relative path, but no protocol/not a valid url, let's try to set the protocol directly
-				s = ctx.DefaultProtocolScheme + "http://" + s
+				s = ctx.DefaultProtocolScheme + "://" + s
 			}
 
 			u, err := url.Parse(s)

@@ -160,11 +160,11 @@ func (ctx *CurlContext) HasFormArgs() bool {
 
 // -d / --data: includes already-URL-encoded values (or lines from a file, or a file as already-URL-encoded content with newlines stripped)
 // -d name=value
-// -d name=@file
+// NO NO NO -d name=@file NO NO NO NOT SUPPORTED IN UPSTREAM!!
 // -d @file (lines of name=value)
 func handleDataArgs_Standard(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.CurlError {
 	for _, item := range ctx.Data_Standard {
-		idxAt, idxEqual, idxEqualAt := identifyDataReferenceIndexes(item)
+		idxAt, _, _ := identifyDataReferenceIndexes(item)
 		if idxAt == 0 { // @file/path/here - file containing name=value lines
 			filename := strings.TrimPrefix(item, "@")
 			fullForm, err := os.ReadFile(filename)
@@ -173,21 +173,6 @@ func handleDataArgs_Standard(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerror
 			}
 			formLines := strings.Split(string(fullForm), "\n")
 			appendDataStrings(bodyBuf, formLines)
-		} else if idxEqual > -1 && idxEqual == idxEqualAt { // name=@value - value is file path for the content
-			splits := strings.SplitN(item, "=", 2)
-			name := splits[0]
-			value := splits[1]
-			filename := strings.TrimPrefix(value, "@")
-			valueRaw, err := os.ReadFile(filename)
-			if err != nil {
-				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
-			}
-			newLine1 := []byte("\r")
-			newLine2 := []byte("\n")
-			empty := []byte("")
-			valueRaw = bytes.Replace(valueRaw, newLine1, empty, -1)
-			valueRaw = bytes.Replace(valueRaw, newLine2, empty, -1)
-			appendDataString(bodyBuf, name+"="+string(valueRaw))
 		} else {
 			appendDataString(bodyBuf, item)
 		}
@@ -197,12 +182,12 @@ func handleDataArgs_Standard(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerror
 
 // --data-urlencoded: includes to-be-URL-encoded values (or lines from a file, or a file as to-bo-URL-encoded content with newlines encoded)
 // --data-urlencoded name=value
-// --data-urlencoded name=@file
+// --data-urlencoded name@file (note: NOT name=@file)
 // --data-urlencoded @file (lines of name=value)
 func handleDataArgs_Encoded(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.CurlError {
 	formBody := url.Values{}
 	for _, item := range ctx.Data_Encoded {
-		idxAt, idxEqual, idxEqualAt := identifyDataReferenceIndexes(item)
+		idxAt, idxEqual, _ := identifyDataReferenceIndexes(item)
 		if idxAt == 0 { // @file/path/here - file containing name=value lines
 			filename := strings.TrimPrefix(item, "@")
 			fullForm, err := os.ReadFile(filename)
@@ -211,18 +196,27 @@ func handleDataArgs_Encoded(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors
 			}
 			formLines := strings.Split(string(fullForm), "\n")
 			for _, item2 := range formLines {
-				item2parts := strings.SplitN(item2, "=", 2)
-				if len(item2parts) == 2 {
-					formBody.Add(item2parts[0], item2parts[1])
-				} else {
-					panic("I need a name=value, @file of lines name=value format, or name=@file/path/here")
-				}
+				//item2parts := strings.SplitN(item2, "=", 2)
+				//if len(item2parts) == 2 {
+				//	formBody.Add(item2parts[0], item2parts[1])
+				//} else {
+				//	panic("I need a name=value, @file of lines name=value format, or name@file/path/here")
+				//}
+				formBody.Add(item2, "")
+				// this is ... weird, but it's how curl on my machine (curl 7.81.0) actually works..
+				/*
+									echo "hello=world" > /tmp/d
+									curl -D - -o - --data-urlencode @/tmp/d https://httpbin.org/post returns (relavant part):
+									"form": {
+					    				"hello=world\n": ""
+					  				},
+									which is WEIRD, but I want to be compatible, so I'll reproduce it..
+				*/
 			}
-		} else if idxEqual > -1 && idxEqual == idxEqualAt { // name=@value - value is file path for the content
-			splits := strings.SplitN(item, "=", 2)
+		} else if idxAt > 0 { // name@value
+			splits := strings.SplitN(item, "@", 2)
 			name := splits[0]
-			value := splits[1]
-			filename := strings.TrimPrefix(value, "@")
+			filename := splits[1]
 			valueRaw, err := os.ReadFile(filename)
 			if err != nil {
 				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
@@ -248,7 +242,16 @@ func handleDataArgs_Encoded(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors
 // --json @file (raw JSON)
 func handleDataArgs_Json(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.CurlError {
 	for _, item := range ctx.Data_Json {
-		appendDataString(bodyBuf, item)
+		if item[0] == '@' {
+			filename := strings.TrimPrefix(item, "@")
+			fullForm, err := os.ReadFile(filename)
+			if err != nil {
+				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
+			}
+			appendDataBytes(bodyBuf, fullForm)
+		} else {
+			appendDataString(bodyBuf, item)
+		}
 	}
 	return nil
 }
@@ -265,11 +268,11 @@ func handleDataArgs_RawAsIs(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors
 
 // --data-binary: includes exactly-as-presented values (or lines from a file, or a file as exactly-as-presented content with newlines retained)
 // --data-binary name=value
-// --data-binary name=@file
+// NO NO NO --data-binary name=@file NO NO NO NOT SUPPORTED IN UPSTREAM!!
 // --data-binary @file (lines of name=value)
 func handleDataArgs_Binary(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.CurlError {
 	for _, item := range ctx.Data_Binary {
-		idxAt, idxEqual, idxEqualAt := identifyDataReferenceIndexes(item)
+		idxAt, _, _ := identifyDataReferenceIndexes(item)
 		if idxAt == 0 { // @file/path/here - file containing name=value lines
 			filename := strings.TrimPrefix(item, "@")
 			fullForm, err := os.ReadFile(filename)
@@ -277,17 +280,6 @@ func handleDataArgs_Binary(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.
 				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 			}
 			appendDataBytes(bodyBuf, fullForm)
-		} else if idxEqual > -1 && idxEqual == idxEqualAt { // name=@value - value is file path for the content
-			splits := strings.SplitN(item, "=", 2)
-			name := splits[0]
-			value := splits[1]
-			filename := strings.TrimPrefix(value, "@")
-			valueRaw, err := os.ReadFile(filename)
-			if err != nil {
-				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
-			}
-			appendDataString(bodyBuf, name+"=")
-			bodyBuf.Write(valueRaw) // already wrote the [&]name= part, just add value directly
 		} else {
 			appendDataString(bodyBuf, item)
 		}

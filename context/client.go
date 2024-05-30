@@ -13,6 +13,7 @@ import (
 	"time"
 
 	curlerrors "github.com/cdwiegand/go-curling/errors"
+	cookieJar "github.com/orirawlings/persistent-cookiejar"
 )
 
 type CurlResponses struct {
@@ -180,11 +181,15 @@ func (ctx *CurlContext) SetCookieHeadersOnRequest(request *http.Request) *curler
 	if ctx.Cookies != nil {
 		for _, cookie := range ctx.Cookies {
 			if !strings.Contains(cookie, "=") { // curl does this, so... ugh, wish golang had .Net's System.IO.Path.Exists() in a safe way
-				f, err := os.ReadFile(cookie)
+				// we use cookieJar's format, not curl's
+				tmp, err := cookieJar.New(&cookieJar.Options{
+					Filename: ctx.CookieJar,
+				})
 				if err != nil {
-					return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", cookie), err)
+					for _, y := range tmp.AllCookies() {
+						request.AddCookie(y)
+					}
 				}
-				request.Header.Add("Cookie", string(f))
 			} else {
 				request.Header.Add("Cookie", cookie)
 			}

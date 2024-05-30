@@ -40,3 +40,16 @@ func Test_Delete_CmdLine(t *testing.T) {
 	}
 	testRun.RunTestRun()
 }
+
+/* -- now part of normal Test_Delete_CmdLine using wsl in Windows!
+func Test_Delete_CmdLine_ExplicitCurl(t *testing.T) {
+	testRun := curltestharness.BuildTestRun(t)
+	testRun.CmdLineBuilder = func(testrun *curltestharness.TestRun) []string {
+		return []string{"https://httpbin.org/delete", "-X", "DELETE", "-o", testrun.GetOneOutputFile()}
+	}
+	testRun.SuccessHandler = func(json map[string]interface{}, testrun *curltestharness.TestRun) {
+		// no error means success, it's delete, there's no real response other than a success code
+	}
+
+	testRun.RunTestRunAgainstCurlCli()
+}*/

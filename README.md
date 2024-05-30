@@ -23,7 +23,7 @@ HEALTHCHECK CMD curl -s http://localhost:80
 # Differences between original curl and go-curling
 This program only attempts to support HTTP/HTTPS protocols - others like IMAP, SMTP, RTMP, etc. are not supported.
 
-Not all HTTP-related functionality is supported either, but normal calls like GET, POST, PUT, DELETE, etc. are implemented for the vast majority of use cases, but one difference that makes this not 100% drop-in would be that the `--cookie-jar`/`-c` is both read and write. The `--cookie` / `-b` command only specifies a raw HTTP cookie on the command line - it is not usable as a file to read a prior cookie jar, due to the custom JSON format for storing cookies. So normally if you want to use cookies to login a session, just use `--cookie-jar`/`-c` in each call - no need to specify `--cookie`/`-b` unless you want to specify one or more "starting" cookie values.
+Not all HTTP-related functionality is supported either, but normal calls like GET, POST, PUT, DELETE, etc. are implemented for the vast majority of use cases, but one difference that makes this not 100% drop-in would be that the `--cookie-jar`/`-c` is both read and write (and `-b`/`--cookie` is "read only"). So normally if you want to use cookies to login a session, just use `--cookie-jar`/`-c` in each call - no need to specify `--cookie`/`-b` unless you want to specify one or more "starting" cookie values.
 
 - Globbing is NOT supported
 - Environment variable interpolation ("Variables" in the curl man page) is not supported
