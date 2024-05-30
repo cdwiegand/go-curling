@@ -88,7 +88,7 @@ func main() {
 				}
 			} else {
 				cerrs := ctx.ProcessResponseToOutputs(index, resp, request)
-				if cerrs != nil && len(cerrs.Errors) > 0 {
+				if cerrs.HasError() {
 					forceExitCode := 0
 					for _, h := range cerrs.Errors {
 						lastErrorCode = h

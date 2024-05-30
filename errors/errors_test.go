@@ -6,7 +6,7 @@ import (
 )
 
 func Test_ErrorCollection(t *testing.T) {
-	cc := new(CurlErrorCollection)
+	var cc CurlErrorCollection
 	if cc.Errors != nil {
 		t.Error("cc.Errors should be nil")
 	}

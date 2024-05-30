@@ -7,13 +7,13 @@ import (
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
-
+	curltestharness "github.com/cdwiegand/go-curling/tests"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_All4DataArgs_Context(t *testing.T) {
-	testRun := BuildTestRun(t)
-	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
+	testRun := curltestharness.BuildTestRun(t)
+	testRun.ContextBuilder = func(testrun *curltestharness.TestRun) *curl.CurlContext {
 		os.WriteFile(testRun.GetNextInputFile(), []byte("testdatastandard=a&b1=c"), 0666)
 		os.WriteFile(testRun.GetNextInputFile(), []byte("testdatabinary=a&b2=c"), 0666)
 		os.WriteFile(testRun.GetNextInputFile(), []byte("testdataencoded=a&b"), 0666)
@@ -31,12 +31,12 @@ func Test_All4DataArgs_Context(t *testing.T) {
 		}
 	}
 	testRun.SuccessHandlerIndexed = helper_All4DataArgs_Success
-	testRun.Run()
+	testRun.RunTestRun()
 }
 
 func Test_All4DataArgs_CmdLine(t *testing.T) {
-	testRun := BuildTestRun(t)
-	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
+	testRun := curltestharness.BuildTestRun(t)
+	testRun.CmdLineBuilder = func(testrun *curltestharness.TestRun) []string {
 		os.WriteFile(testRun.GetNextInputFile(), []byte("testdatastandard=a&b1=c"), 0666)
 		os.WriteFile(testRun.GetNextInputFile(), []byte("testdatabinary=a&b2=c"), 0666)
 		os.WriteFile(testRun.GetNextInputFile(), []byte("testdataencoded=a&b"), 0666)
@@ -56,10 +56,10 @@ func Test_All4DataArgs_CmdLine(t *testing.T) {
 		}
 	}
 	testRun.SuccessHandlerIndexed = helper_All4DataArgs_Success
-	testRun.Run()
+	testRun.RunTestRun()
 }
 
-func helper_All4DataArgs_Success(json map[string]interface{}, index int, testrun *TestRun) {
+func helper_All4DataArgs_Success(json map[string]interface{}, index int, testrun *curltestharness.TestRun) {
 	t := testrun.Testing
 
 	assert.NotNil(t, json["form"])

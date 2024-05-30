@@ -295,8 +295,7 @@ func (ctx *CurlContext) canStatusCodeRetry(statusCode int) bool {
 	}
 }
 
-func (ctx *CurlContext) ProcessResponseToOutputs(index int, resp *CurlResponses, request *http.Request) (cerrs *curlerrors.CurlErrorCollection) {
-	cerrs = new(curlerrors.CurlErrorCollection)
+func (ctx *CurlContext) ProcessResponseToOutputs(index int, resp *CurlResponses, request *http.Request) (cerrs curlerrors.CurlErrorCollection) {
 	err2 := ctx.Jar.Save() // is ignored if jar's filename is empty
 	if err2 != nil {
 		cerrs.AppendCurlError(curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_WRITE_FILE, "Failed to save cookies to jar", err2))

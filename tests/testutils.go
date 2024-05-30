@@ -1,4 +1,4 @@
-package main
+package curltestharness
 
 import (
 	"encoding/json"
@@ -51,12 +51,6 @@ func (run *TestRun) GetNextInputFile() (ret string) {
 	run.ListInputFiles = append(run.ListInputFiles, ret)
 	return
 }
-func (run *TestRun) GetNextOutputFile() (ret string) {
-	i := len(run.ListOutputFiles)
-	ret = filepath.Join(run.TempDir, fmt.Sprintf("%d.out.tmp", i))
-	run.ListOutputFiles = append(run.ListOutputFiles, ret)
-	return
-}
 
 func (run *TestRun) GetOneOutputFiles() []string {
 	// this is for cleaner code in the context tests, which needs an array of output files that is usually just 1 long
@@ -90,7 +84,7 @@ func GenericTestErrorHandler(t *testing.T, err *curlerrors.CurlError) {
 	t.Errorf("Got error %v", err)
 }
 
-func (run *TestRun) Run() {
+func (run *TestRun) RunTestRun() {
 	var ctx *curl.CurlContext
 	var args []string
 	var nonFlagArgs []string
@@ -137,7 +131,7 @@ func (run *TestRun) Run() {
 		}
 
 		cerrs := ctx.ProcessResponseToOutputs(index, resp, request)
-		if cerrs != nil {
+		if cerrs.HasError() {
 			for _, h := range cerrs.Errors {
 				run.ErrorHandler(h, run)
 			}
@@ -247,7 +241,7 @@ func CompareCurlCliOutput(run *TestRun, args []string, myJsonObj map[string]inte
 	return nil
 }
 
-func (run *TestRun) RunAgainstCurlCli() {
+func (run *TestRun) RunTestRunAgainstCurlCli() {
 	var args []string
 
 	if run.CmdLineBuilder != nil {

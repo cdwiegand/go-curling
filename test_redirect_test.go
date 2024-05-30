@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
+	curltestharness "github.com/cdwiegand/go-curling/tests"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_RedirectTest_CurlContext(t *testing.T) {
-	testRun := BuildTestRun(t)
-	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
+	testRun := curltestharness.BuildTestRun(t)
+	testRun.ContextBuilder = func(testrun *curltestharness.TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
 			Urls:            []string{"https://httpbin.org/redirect-to?url=https://httpbin.org/get%3Ftest%3Done"},
 			BodyOutput:      testrun.EnsureAtLeastOneOutputFiles(),
@@ -19,19 +20,19 @@ func Test_RedirectTest_CurlContext(t *testing.T) {
 	}
 	testRun.SuccessHandler = helper_RedirectTest_Success
 
-	testRun.Run()
+	testRun.RunTestRun()
 }
 func Test_RedirectTest_CmdLine(t *testing.T) {
-	testRun := BuildTestRun(t)
+	testRun := curltestharness.BuildTestRun(t)
 	testRun.GetOneOutputFile() // so we can use one output file
-	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
+	testRun.CmdLineBuilder = func(testrun *curltestharness.TestRun) []string {
 		// adding -L so we act like curl and follow the redirect
 		return []string{"-L", "https://httpbin.org/redirect-to?url=https://httpbin.org/get%3Ftest%3Done", "-o", testrun.ListOutputFiles[0]}
 	}
 	testRun.SuccessHandler = helper_RedirectTest_Success
-	testRun.Run()
+	testRun.RunTestRun()
 }
-func helper_RedirectTest_Success(json map[string]interface{}, testrun *TestRun) {
+func helper_RedirectTest_Success(json map[string]interface{}, testrun *curltestharness.TestRun) {
 	t := testrun.Testing
 
 	assert.NotNil(t, json["args"])

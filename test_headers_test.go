@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
+	curltestharness "github.com/cdwiegand/go-curling/tests"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_Headers_CurlContext(t *testing.T) {
-	testRun := BuildTestRun(t)
-	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
+	testRun := curltestharness.BuildTestRun(t)
+	testRun.ContextBuilder = func(testrun *curltestharness.TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
 			Urls:       []string{"https://httpbin.org/headers"},
 			Headers:    []string{"X-Hello: World", "X-Good: Times"},
@@ -18,14 +19,14 @@ func Test_Headers_CurlContext(t *testing.T) {
 		}
 	}
 	testRun.SuccessHandler = helpers_Headers_success
-	testRun.Run()
+	testRun.RunTestRun()
 
 	// second form:
-	testRun = BuildTestRun(t)
+	testRun = curltestharness.BuildTestRun(t)
 	headersDict := make(map[string]string)
 	headersDict["X-Hello"] = "World"
 	headersDict["X-Good"] = "Times"
-	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
+	testRun.ContextBuilder = func(testrun *curltestharness.TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
 			Urls:        []string{"https://httpbin.org/headers"},
 			HeadersDict: headersDict,
@@ -33,19 +34,19 @@ func Test_Headers_CurlContext(t *testing.T) {
 		}
 	}
 	testRun.SuccessHandler = helpers_Headers_success
-	testRun.Run()
+	testRun.RunTestRun()
 }
 
 func Test_Headers_CmdLine(t *testing.T) {
-	testRun := BuildTestRun(t)
-	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
+	testRun := curltestharness.BuildTestRun(t)
+	testRun.CmdLineBuilder = func(testrun *curltestharness.TestRun) []string {
 		return []string{"https://httpbin.org/headers", "-H", "X-Hello: World", "--header", "X-Good: Times", "-o", testrun.GetOneOutputFile()}
 	}
 	testRun.SuccessHandler = helpers_Headers_success
-	testRun.Run()
+	testRun.RunTestRun()
 }
 
-func helpers_Headers_success(json map[string]interface{}, testrun *TestRun) {
+func helpers_Headers_success(json map[string]interface{}, testrun *curltestharness.TestRun) {
 	t := testrun.Testing
 
 	assert.NotNil(t, json["headers"])

@@ -43,9 +43,11 @@ func (cerrs *CurlErrorCollection) AppendCurlError(cerr *CurlError) {
 		cerrs.Errors = append(cerrs.Errors, cerr)
 	}
 }
-
-func (cerrs *CurlErrorCollection) AppendCurlErrors(cerr *CurlErrorCollection) {
-	if cerr != nil && cerr.Errors != nil && len(cerr.Errors) > 0 {
+func (cerrs *CurlErrorCollection) AppendCurlErrors(cerr CurlErrorCollection) {
+	if cerr.Errors != nil && len(cerr.Errors) > 0 {
 		cerrs.Errors = append(cerrs.Errors, cerr.Errors...)
 	}
+}
+func (cerrs *CurlErrorCollection) HasError() bool {
+	return cerrs.Errors != nil && len(cerrs.Errors) > 0
 }

@@ -226,8 +226,7 @@ func (ctx *CurlContext) GetNextOutputsFromContext(index int) (headerOutput strin
 	return
 }
 
-func (ctx *CurlContext) EmitResponseToOutputs(index int, resp *CurlResponses, request *http.Request) (cerrs *curlerrors.CurlErrorCollection) {
-	cerrs = new(curlerrors.CurlErrorCollection)
+func (ctx *CurlContext) EmitResponseToOutputs(index int, resp *CurlResponses, request *http.Request) (cerrs curlerrors.CurlErrorCollection) {
 	for i := 0; i < len(resp.Responses); i++ {
 		isLast := i == len(resp.Responses)-1
 		cerr := ctx.EmitSingleHttpResponseToOutputs(index, resp.Responses[i].HttpResponse, request, !isLast)
@@ -237,9 +236,7 @@ func (ctx *CurlContext) EmitResponseToOutputs(index int, resp *CurlResponses, re
 	return cerrs
 }
 
-func (ctx *CurlContext) EmitSingleHttpResponseToOutputs(index int, resp *http.Response, request *http.Request, headersOnly bool) (cerrs *curlerrors.CurlErrorCollection) {
-	cerrs = new(curlerrors.CurlErrorCollection)
-
+func (ctx *CurlContext) EmitSingleHttpResponseToOutputs(index int, resp *http.Response, request *http.Request, headersOnly bool) (cerrs curlerrors.CurlErrorCollection) {
 	// emit body
 	var respBody []byte
 	if !headersOnly && resp.Body != nil {
