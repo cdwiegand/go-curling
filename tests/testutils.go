@@ -84,11 +84,8 @@ func GenericTestErrorHandler(t *testing.T, err *curlerrors.CurlError) {
 	t.Errorf("Got error %v", err)
 }
 
-func (run *TestRun) RunTestRun() {
-	var ctx *curl.CurlContext
-	var args []string
+func (run *TestRun) GetTestRunReady() (ctx *curl.CurlContext, args []string, cerr *curlerrors.CurlError) {
 	var nonFlagArgs []string
-	var cerr *curlerrors.CurlError
 
 	if run.ContextBuilder != nil {
 		ctx = run.ContextBuilder(run)
@@ -97,7 +94,6 @@ func (run *TestRun) RunTestRun() {
 		args = run.CmdLineBuilder(run)
 		nonFlagArgs, cerr = curlcli.ParseFlags(args, ctx)
 		if cerr != nil {
-			run.ErrorHandler(cerr, run)
 			return
 		}
 	} else {
@@ -105,6 +101,14 @@ func (run *TestRun) RunTestRun() {
 	}
 
 	cerr = ctx.SetupContextForRun(nonFlagArgs)
+	return
+}
+func (run *TestRun) RunTestRun() {
+	var ctx *curl.CurlContext
+	var args []string
+	var cerr *curlerrors.CurlError
+
+	ctx, args, cerr = run.GetTestRunReady()
 	if cerr != nil {
 		run.ErrorHandler(cerr, run)
 		return
