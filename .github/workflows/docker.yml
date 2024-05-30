@@ -37,7 +37,8 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
-          platforms: linux/amd64,linux/arm64,linux/ppc64le,linux/s390x,linux/386,linux/arm/v7,linux/arm/v6,linux/riscv64
+          platforms: linux/amd64,linux/arm64,linux/ppc64le,linux/s390x,linux/386,linux/arm/v7,linux/arm/v6
+          # commented until golang:alpine built for it: linux/riscv64
           # unavail platforms: linux/mips64le,linux/mips64 # no alpine image
           push: true
           tags: |
