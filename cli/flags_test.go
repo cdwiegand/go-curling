@@ -6,30 +6,30 @@ import (
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
-	curlcommontests "github.com/cdwiegand/go-curling/tests/common"
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_ParseConfigFileLine(t *testing.T) {
-	curlcommontests.AssertArraysEqual(t, []string{}, ParseConfigLine(""))
-	curlcommontests.AssertArraysEqual(t, []string{}, ParseConfigLine("# this is a comment"))
-	curlcommontests.AssertArraysEqual(t, []string{"-v"}, ParseConfigLine("-v"))
-	curlcommontests.AssertArraysEqual(t, []string{"--verbose"}, ParseConfigLine("--verbose"))
-	curlcommontests.AssertArraysEqual(t, []string{"--verbose", "1"}, ParseConfigLine("--verbose 1"))
-	curlcommontests.AssertArraysEqual(t, []string{"--verbose"}, ParseConfigLine("verbose"))
-	curlcommontests.AssertArraysEqual(t, []string{"--verbose", "1"}, ParseConfigLine("verbose 1"))
-	curlcommontests.AssertArraysEqual(t, []string{"--verbose", "1"}, ParseConfigLine("verbose= 1"))
-	curlcommontests.AssertArraysEqual(t, []string{"--verbose", "1"}, ParseConfigLine("verbose =1"))
-	curlcommontests.AssertArraysEqual(t, []string{"--verbose", "1"}, ParseConfigLine("verbose = 1"))
-	curlcommontests.AssertArraysEqual(t, []string{"--verbose", "1"}, ParseConfigLine("verbose: 1"))
-	curlcommontests.AssertArraysEqual(t, []string{"--verbose", "1"}, ParseConfigLine("verbose :1"))
-	curlcommontests.AssertArraysEqual(t, []string{"--verbose", "1"}, ParseConfigLine("verbose : 1"))
-	curlcommontests.AssertArraysEqual(t, []string{"--verbose", "one two three"}, ParseConfigLine("verbose= \"one two three\""))
-	curlcommontests.AssertArraysEqual(t, []string{"--verbose", "one two three"}, ParseConfigLine("verbose =\"one two three\""))
-	curlcommontests.AssertArraysEqual(t, []string{"--verbose", "one two three"}, ParseConfigLine("verbose = \"one two three\""))
-	curlcommontests.AssertArraysEqual(t, []string{"--verbose", "one two three"}, ParseConfigLine("verbose: \"one two three\""))
-	curlcommontests.AssertArraysEqual(t, []string{"--verbose", "one two three"}, ParseConfigLine("verbose :\"one two three\""))
-	curlcommontests.AssertArraysEqual(t, []string{"--verbose", "one two three"}, ParseConfigLine("verbose : \"one two three\""))
-	curlcommontests.AssertArraysEqual(t, []string{"--url", "https://httpbin.org/post"}, ParseConfigLine("url = \"https://httpbin.org/post\""))
+	assert.EqualValues(t, []string{}, ParseConfigLine(""))
+	assert.EqualValues(t, []string{}, ParseConfigLine("# this is a comment"))
+	assert.EqualValues(t, []string{"-v"}, ParseConfigLine("-v"))
+	assert.EqualValues(t, []string{"--verbose"}, ParseConfigLine("--verbose"))
+	assert.EqualValues(t, []string{"--verbose", "1"}, ParseConfigLine("--verbose 1"))
+	assert.EqualValues(t, []string{"--verbose"}, ParseConfigLine("verbose"))
+	assert.EqualValues(t, []string{"--verbose", "1"}, ParseConfigLine("verbose 1"))
+	assert.EqualValues(t, []string{"--verbose", "1"}, ParseConfigLine("verbose= 1"))
+	assert.EqualValues(t, []string{"--verbose", "1"}, ParseConfigLine("verbose =1"))
+	assert.EqualValues(t, []string{"--verbose", "1"}, ParseConfigLine("verbose = 1"))
+	assert.EqualValues(t, []string{"--verbose", "1"}, ParseConfigLine("verbose: 1"))
+	assert.EqualValues(t, []string{"--verbose", "1"}, ParseConfigLine("verbose :1"))
+	assert.EqualValues(t, []string{"--verbose", "1"}, ParseConfigLine("verbose : 1"))
+	assert.EqualValues(t, []string{"--verbose", "one two three"}, ParseConfigLine("verbose= \"one two three\""))
+	assert.EqualValues(t, []string{"--verbose", "one two three"}, ParseConfigLine("verbose =\"one two three\""))
+	assert.EqualValues(t, []string{"--verbose", "one two three"}, ParseConfigLine("verbose = \"one two three\""))
+	assert.EqualValues(t, []string{"--verbose", "one two three"}, ParseConfigLine("verbose: \"one two three\""))
+	assert.EqualValues(t, []string{"--verbose", "one two three"}, ParseConfigLine("verbose :\"one two three\""))
+	assert.EqualValues(t, []string{"--verbose", "one two three"}, ParseConfigLine("verbose : \"one two three\""))
+	assert.EqualValues(t, []string{"--url", "https://httpbin.org/post"}, ParseConfigLine("url = \"https://httpbin.org/post\""))
 }
 
 func Test_ParseArgsWithConfigFile(t *testing.T) {
@@ -49,10 +49,10 @@ func Test_ParseArgsWithConfigFile(t *testing.T) {
 	if len(extras) > 0 {
 		t.Errorf("Got %d extras, shouldn't have any", len(extras))
 	}
-	curlcommontests.AssertEqual(t, true, ctx.IncludeHeadersInMainOutput)    // -i
-	curlcommontests.AssertEqual(t, true, ctx.Verbose)                       // -v
-	curlcommontests.AssertEqual(t, true, ctx.IsSilent)                      // --silent
-	curlcommontests.AssertEqual(t, "POST", ctx.HttpVerb)                    // request POST
-	curlcommontests.AssertEqual(t, 1, len(ctx.Urls))                        // url = "https://httpbin.org/post"
-	curlcommontests.AssertEqual(t, "https://httpbin.org/post", ctx.Urls[0]) // url = "https://httpbin.org/post"
+	assert.Equal(t, true, ctx.IncludeHeadersInMainOutput)    // -i
+	assert.Equal(t, true, ctx.Verbose)                       // -v
+	assert.Equal(t, true, ctx.IsSilent)                      // --silent
+	assert.Equal(t, "POST", ctx.HttpVerb)                    // request POST
+	assert.Equal(t, 1, len(ctx.Urls))                        // url = "https://httpbin.org/post"
+	assert.Equal(t, "https://httpbin.org/post", ctx.Urls[0]) // url = "https://httpbin.org/post"
 }

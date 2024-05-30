@@ -3,6 +3,8 @@ package jsonutil
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func Test_Equals(t *testing.T) {
@@ -16,12 +18,23 @@ func Test_Equals(t *testing.T) {
 
 	json.Unmarshal(byteValue, &res)
 	json.Unmarshal(byteValue2, &res2)
-	if !Equal(res, res2, func(path string) bool {
-		if path == "Ignore" {
-			return true
-		}
-		return false
-	}) {
-		t.Fail()
-	}
+
+	assert.True(t, Equal(res, res2, func(path string) bool {
+		return path == "Ignore"
+	}))
+}
+
+func Test_Delete(t *testing.T) {
+	jsonStr := "{\"Testing\":1,\"Hello\":\"World\"}"
+	byteValue := []byte(jsonStr)
+
+	var res map[string]interface{}
+	json.Unmarshal(byteValue, &res)
+
+	Remove(res, "Testing")
+	assert.Nil(t, res["Testing"])
+	assert.NotNil(t, res["Hello"])
+
+	Remove(res, "Hello")
+	assert.Nil(t, res["Hello"])
 }

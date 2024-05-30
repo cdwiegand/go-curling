@@ -3,7 +3,6 @@
 package jsonutil
 
 import (
-	"encoding/json"
 	"reflect"
 	"strings"
 )
@@ -100,16 +99,4 @@ func Remove(i interface{}, path string) {
 			}
 		}
 	}
-}
-
-// Unmarshal parses the Body-encoded data into an interface{}.
-func Unmarshal(b []byte) (interface{}, error) {
-	var j interface{}
-
-	err := json.Unmarshal(b, &j)
-	if err != nil {
-		return nil, err
-	}
-
-	return j, nil
 }
