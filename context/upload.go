@@ -152,7 +152,12 @@ func (ctx *CurlContext) HandleDataArgs(returnAsGetParams bool) (*bytes.Buffer, *
 	return bodyBuf, nil
 }
 func (ctx *CurlContext) HasDataArgs() bool {
-	return len(ctx.Data_Binary) > 0 || len(ctx.Data_Encoded) > 0 || len(ctx.Data_RawAsIs) > 0 || len(ctx.Data_Standard) > 0 || len(ctx.Data_Json) > 0
+	return len(ctx.Data_Binary) > 0 ||
+		len(ctx.Data_Encoded) > 0 ||
+		len(ctx.Data_RawAsIs) > 0 ||
+		len(ctx.Data_Standard) > 0 ||
+		len(ctx.Data_Ascii) > 0 ||
+		len(ctx.Data_Json) > 0
 }
 func (ctx *CurlContext) HasFormArgs() bool {
 	return len(ctx.Form_Multipart) > 0 || len(ctx.Form_MultipartRaw) > 0
@@ -173,7 +178,9 @@ func handleDataArgs_Standard(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerror
 				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 			}
 			formLines := strings.Split(string(fullForm), "\n")
-			appendDataStrings(bodyBuf, formLines)
+			for _, item := range formLines {
+				appendDataString(bodyBuf, item)
+			}
 		} else {
 			appendDataString(bodyBuf, item)
 		}
@@ -188,7 +195,8 @@ func handleDataArgs_Standard(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerror
 func handleDataArgs_Encoded(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.CurlError {
 	formBody := url.Values{}
 	for _, item := range ctx.Data_Encoded {
-		idxAt, idxEqual, _ := identifyDataReferenceIndexes(item)
+		idxAt := strings.Index(item, "@")
+		idxEqual := strings.Index(item, "=")
 		if idxAt == 0 { // @file/path/here - file containing name=value lines
 			filename := strings.TrimPrefix(item, "@")
 			fullForm, err := os.ReadFile(filename)
@@ -273,7 +281,7 @@ func handleDataArgs_RawAsIs(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors
 // --data-binary @file (lines of name=value)
 func handleDataArgs_Binary(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.CurlError {
 	for _, item := range ctx.Data_Binary {
-		idxAt, _, _ := identifyDataReferenceIndexes(item)
+		idxAt := strings.Index(item, "@")
 		if idxAt == 0 { // @file/path/here - file containing name=value lines
 			filename := strings.TrimPrefix(item, "@")
 			fullForm, err := os.ReadFile(filename)
@@ -296,18 +304,8 @@ func appendDataBytes(bodyBuf *bytes.Buffer, content []byte) {
 }
 
 func appendDataString(bodyBuf *bytes.Buffer, content string) {
-	appendDataBytes(bodyBuf, []byte(content))
-}
-
-func appendDataStrings(bodyBuf *bytes.Buffer, lines []string) {
-	for _, item := range lines {
-		appendDataString(bodyBuf, item)
+	if bodyBuf.Len() > 0 {
+		bodyBuf.WriteString("&")
 	}
-}
-
-func identifyDataReferenceIndexes(item string) (idxAt int, idxEqual int, idxEqualAt int) {
-	idxAt = strings.Index(item, "@")
-	idxEqual = strings.Index(item, "=")
-	idxEqualAt = strings.Index(item, "=@")
-	return
+	bodyBuf.WriteString(content)
 }
