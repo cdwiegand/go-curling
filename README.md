@@ -47,7 +47,7 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 | `-K`/`--config` | yes | Allows reading config values just like the cli parameters |
 | `-b`/`--cookie` | yes | HTTP cookie string or `@`file-path, specifies initial HTTP cookies |
 | `-c`/`--cookie-jar` | yes | Specifies file to use for ongoing cookies between requests, cannot use curl's native jar files |
-| `-d`/`--data` | yes | Send raw string data name=value OR name=`@`file-path |
+| `-d`/`--data`/`--data-ascii` | yes | Send raw string data name=value OR name=`@`file-path |
 | `--data-binary` | yes | Send raw binary data name=value OR name=`@`file-path | |
 | `--data-raw` | yes | Send next parameter exactly as given (does not read `@` file value) |
 | `--data-urlencode` | yes | Send URL encoded data name=value OR name=`@`file-path |
@@ -180,7 +180,6 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--crlf`
 - `--crlfile`
 - `--curves`
-- `--data-ascii`
 - `--delegation`
 - `--digest`
 - `-q`/`--disable`

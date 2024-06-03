@@ -40,6 +40,7 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	flags.BoolVarP(&ctx.IncludeHeadersInMainOutput, "include", "i", false, "Include headers (prepended to body content)")
 	flags.StringSliceVarP(&ctx.Cookies, "cookie", "b", empty, "HTTP cookie, raw HTTP cookie only (use -c for cookie jar files)")
 	flags.StringSliceVarP(&ctx.Data_Standard, "data", "d", empty, "HTML form data (send as-is, except for @file reference strips strips CR/LF), sets mime type to 'application/x-www-form-urlencoded' unless specified as a header")
+	flags.StringSliceVar(&ctx.Data_Ascii, "data-ascii", empty, "Alias for -d/--data")
 	flags.StringSliceVar(&ctx.Data_Encoded, "data-urlencode", empty, "HTML form data (value or @file lines are URL encoded), sets mime type to 'application/x-www-form-urlencoded' unless specified as a header")
 	flags.StringSliceVar(&ctx.Data_RawAsIs, "data-raw", empty, "HTML form data (send value exactly as-is, no @file support), sets mime type to 'application/x-www-form-urlencoded' unless specified as a header")
 	flags.StringSliceVar(&ctx.Data_Binary, "data-binary", empty, "HTML form data (send value exactly as-is, except for @file reference), sets mime type to 'application/x-www-form-urlencoded' unless specified as a header")

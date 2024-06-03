@@ -60,6 +60,7 @@ type CurlContext struct {
 	Jar                                *cookieJar.Jar
 	Upload_File                        []string
 	Data_Standard                      []string
+	Data_Ascii                         []string
 	Data_Encoded                       []string
 	Data_RawAsIs                       []string
 	Data_Binary                        []string

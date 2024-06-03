@@ -163,8 +163,9 @@ func (ctx *CurlContext) HasFormArgs() bool {
 // NO NO NO -d name=@file NO NO NO NOT SUPPORTED IN UPSTREAM!!
 // -d @file (lines of name=value)
 func handleDataArgs_Standard(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.CurlError {
-	for _, item := range ctx.Data_Standard {
-		idxAt, _, _ := identifyDataReferenceIndexes(item)
+	data_combined := append(ctx.Data_Standard, ctx.Data_Ascii...)
+	for _, item := range data_combined {
+		idxAt := strings.Index(item, "@")
 		if idxAt == 0 { // @file/path/here - file containing name=value lines
 			filename := strings.TrimPrefix(item, "@")
 			fullForm, err := os.ReadFile(filename)
