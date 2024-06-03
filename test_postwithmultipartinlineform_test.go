@@ -36,3 +36,20 @@ func helper_PostWithMultipartInlineForm_success(json map[string]interface{}, tes
 	form := json["form"].(map[string]any)
 	assert.EqualValues(t, "one", form["test"])
 }
+
+func Test_PostWithMultipleDataArgs_CmdLine(t *testing.T) {
+	testRun := curltestharness.BuildTestRun(t)
+	testRun.CmdLineBuilder = func(testrun *curltestharness.TestRun) []string {
+		return []string{"https://httpbin.org/post", "-X", "POST", "-d", "test1=one", "-d", "test2=two", "-d", "test3=three", "-o", testrun.GetOneOutputFile()}
+	}
+	testRun.SuccessHandler = helper_PostWithMultipleDataArgs_success
+	testRun.RunTestRun()
+}
+func helper_PostWithMultipleDataArgs_success(json map[string]interface{}, testrun *curltestharness.TestRun) {
+	t := testrun.Testing
+	assert.NotNil(t, json["form"])
+	form := json["form"].(map[string]any)
+	assert.EqualValues(t, "one", form["test1"])
+	assert.EqualValues(t, "two", form["test2"])
+	assert.EqualValues(t, "three", form["test3"])
+}
