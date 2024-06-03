@@ -1,6 +1,8 @@
 package curltestharness
 
 import (
+	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -273,6 +276,91 @@ func (run *TestRun) FixLinuxRunIfWindowsToWslCurlRun(args []string) (cmd *exec.C
 	inputs = run.ListInputFiles
 	outputs = run.ListOutputFiles
 	return
+}
+
+func RunCurlExe(args []string) (exitCode int, stdOut bytes.Buffer, stdErr bytes.Buffer, err error) {
+	var cmd *exec.Cmd
+	cmd = exec.Command("curl", args...)
+	if runtime.GOOS == "windows" { // seriously, Microsoft?? Kill the curl powershell "alias"
+		cmd = exec.Command("curl.exe", args...)
+	}
+
+	var outb, errb bytes.Buffer
+	cmd.Stdout = &outb
+	cmd.Stderr = &errb
+	err = cmd.Run()
+	if err != nil {
+		return 0, outb, errb, err
+	}
+	return cmd.ProcessState.ExitCode(), outb, errb, nil
+}
+
+type VersionInfo struct {
+	Major int
+	Minor int
+	Patch int
+}
+
+func NewVersionInfo(major int, minor int, patch int) (ret VersionInfo) {
+	ret.Major = major
+	ret.Minor = minor
+	ret.Patch = patch
+	return
+}
+
+func GetLocalCurlVersion() (version VersionInfo, err error) {
+	exitCode, stdout, _, err := RunCurlExe([]string{"--version"})
+	if exitCode != 0 {
+		return version, fmt.Errorf("curl exit code was failure: %d", exitCode)
+	}
+	if err != nil {
+		return version, err
+	}
+	if stdout.Len() == 0 {
+		return version, errors.New("curl output was empty")
+	}
+
+	firstLine := strings.Split(stdout.String(), "\n")[0]
+	return ParseLocalCurlVersion(firstLine)
+}
+func EnsureLocalCurlMinVersion(wantAtLeast VersionInfo) bool {
+	gotVersion, _ := GetLocalCurlVersion()
+	return CompareVersionMinimum(wantAtLeast, gotVersion)
+}
+func EnsureLocalCurlMinVersionAndLog(t *testing.T, wantAtLeast VersionInfo) bool {
+	gotVersion, _ := GetLocalCurlVersion()
+	ret := CompareVersionMinimum(wantAtLeast, gotVersion)
+	if !ret {
+		t.Logf("local curl version was %d.%d.%d, I wanted at least %d.%d.%d",
+			gotVersion.Major, gotVersion.Minor, gotVersion.Patch,
+			wantAtLeast.Major, wantAtLeast.Minor, wantAtLeast.Patch)
+	}
+	return ret
+}
+func CompareVersionMinimum(wantAtLeast VersionInfo, gotVersion VersionInfo) bool {
+	if gotVersion.Major > wantAtLeast.Major ||
+		(gotVersion.Major == wantAtLeast.Major && (gotVersion.Minor > wantAtLeast.Minor ||
+			(gotVersion.Minor == wantAtLeast.Minor && gotVersion.Patch >= wantAtLeast.Patch))) {
+		return true
+	}
+	return false
+}
+
+func ParseLocalCurlVersion(firstLine string) (VersionInfo, error) {
+	var ret VersionInfo
+	if !strings.HasPrefix(firstLine, "curl ") || len(firstLine) < 6 { // "curl 1" is 6 long, so that's a minimum
+		return ret, errors.New("curl output was not sane")
+	}
+	versionWord := strings.Split(firstLine, " ")[1] // second "word" - we know that 'curl ' with the space is present
+	versionParts := strings.Split(versionWord, ".") // should be 3 parts long
+
+	Major, majorErr := strconv.Atoi(versionParts[0])
+	Minor, minorErr := strconv.Atoi(versionParts[1])
+	Patch, patchErr := strconv.Atoi(versionParts[2])
+	ret.Major = Major
+	ret.Minor = Minor
+	ret.Patch = Patch
+	return ret, cmp.Or(majorErr, minorErr, patchErr)
 }
 
 /*

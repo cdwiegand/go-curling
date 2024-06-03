@@ -27,6 +27,7 @@ func Test_PostJsonInclude_CurlContext(t *testing.T) {
 }
 func Test_PostJsonInclude_CmdLine(t *testing.T) {
 	testRun := curltestharness.BuildTestRun(t)
+	testRun.DoNotTestAgainstCurl = !curltestharness.EnsureLocalCurlMinVersion(curltestharness.NewVersionInfo(7, 82, 0))
 	testRun.CmdLineBuilder = func(testrun *curltestharness.TestRun) []string {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("{\"test\": \"one\"}"), 0666)
 		return []string{"https://httpbin.org/post", "-X", "POST", "--json", "@" + testrun.ListInputFiles[0], "-o", testrun.GetOneOutputFile()}
@@ -36,6 +37,7 @@ func Test_PostJsonInclude_CmdLine(t *testing.T) {
 }
 func Test_PostJsonSingleQuotes_CmdLine(t *testing.T) {
 	testRun := curltestharness.BuildTestRun(t)
+	testRun.DoNotTestAgainstCurl = !curltestharness.EnsureLocalCurlMinVersion(curltestharness.NewVersionInfo(7, 82, 0))
 	testRun.CmdLineBuilder = func(testrun *curltestharness.TestRun) []string {
 		return []string{"https://httpbin.org/post", "-X", "POST", "--json", "{ 'test': 'one' }", "-o", testrun.GetOneOutputFile()}
 	}
@@ -48,6 +50,7 @@ func Test_PostJsonSingleQuotes_CmdLine(t *testing.T) {
 }
 func Test_PostJsonDoubleQuotes_CmdLine(t *testing.T) {
 	testRun := curltestharness.BuildTestRun(t)
+	testRun.DoNotTestAgainstCurl = !curltestharness.EnsureLocalCurlMinVersionAndLog(t, curltestharness.NewVersionInfo(7, 82, 0))
 	testRun.CmdLineBuilder = func(testrun *curltestharness.TestRun) []string {
 		return []string{"https://httpbin.org/post", "-X", "POST", "--json", "{ \"test\": \"one\" }", "-o", testrun.GetOneOutputFile()}
 	}
