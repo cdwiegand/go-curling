@@ -116,37 +116,11 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 		ctx.SetMethodIfNotSet("HEAD")
 	}
 
-	countMutuallyExclusiveActions := 0
-	if len(ctx.Upload_File) > 0 {
-		countMutuallyExclusiveActions += 1
-	}
-	if ctx.HasFormArgs() {
-		countMutuallyExclusiveActions += 1
-	}
-	if ctx.HasDataArgs() {
-		countMutuallyExclusiveActions += 1
-	}
-	if ctx.HeadOnly {
-		countMutuallyExclusiveActions += 1
-	}
-	if countMutuallyExclusiveActions > 1 {
+	if !ctx.validateFormArgs() {
 		return curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "Cannot include more than one option from: -d/--data*, -F/--form/--form-string, -T/--upload, or -I/--head")
 	}
 
-	countMutuallyExclusiveActions = 0
-	if ctx.Tls_MinVersion_1_0 {
-		countMutuallyExclusiveActions += 1
-	}
-	if ctx.Tls_MinVersion_1_1 {
-		countMutuallyExclusiveActions += 1
-	}
-	if ctx.Tls_MinVersion_1_2 {
-		countMutuallyExclusiveActions += 1
-	}
-	if ctx.Tls_MinVersion_1_3 {
-		countMutuallyExclusiveActions += 1
-	}
-	if countMutuallyExclusiveActions > 1 {
+	if !ctx.validateTlsArgs() {
 		return curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "Cannot include more than one option from: --tls1/-1, --tlsv1.1, --tlsv1.2, --tlsv1.3")
 	}
 
@@ -158,29 +132,9 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 		}
 	}
 
-	urls := append(ctx.Urls, extraArgs...)
-	ctx.Urls = []string{}
-
-	if len(urls) > 0 {
-		for _, s := range urls {
-			if strings.Index(s, "/") == 0 {
-				// url is /something/here - assume localhost!
-				s = ctx.DefaultProtocolScheme + "://localhost" + s
-			} else if !strings.Contains(s, "://") { // ok, wasn't a root relative path, but no protocol/not a valid url, let's try to set the protocol directly
-				s = ctx.DefaultProtocolScheme + "://" + s
-			}
-
-			u, err := url.Parse(s)
-			if err != nil {
-				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_INVALID_URL, fmt.Sprintf("Could not parse url: %q", s), err)
-			}
-
-			if u.Host == "" {
-				u.Host = "localhost"
-			}
-
-			ctx.Urls = append(ctx.Urls, u.String())
-		}
+	s, err2 := ctx.setupUrlsFromArgs(extraArgs)
+	if err2 != nil {
+		return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_INVALID_URL, fmt.Sprintf("Could not parse url: %q", s), err2)
 	}
 
 	jar, err := cookieJar.New(&cookieJar.Options{
@@ -196,10 +150,72 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 	return nil
 }
 
+func (ctx *CurlContext) setupUrlsFromArgs(extraArgs []string) (string, error) {
+	urls := append(ctx.Urls, extraArgs...)
+	ctx.Urls = []string{}
+
+	if len(urls) > 0 {
+		for _, s := range urls {
+			if strings.Index(s, "/") == 0 {
+				// url is /something/here - assume localhost!
+				s = ctx.DefaultProtocolScheme + "://localhost" + s
+			} else if !strings.Contains(s, "://") { // ok, wasn't a root relative path, but no protocol/not a valid url, let's try to set the protocol directly
+				s = ctx.DefaultProtocolScheme + "://" + s
+			}
+
+			u, err := url.Parse(s)
+			if err != nil {
+				return s, err
+			}
+
+			if u.Host == "" {
+				u.Host = "localhost"
+			}
+
+			ctx.Urls = append(ctx.Urls, u.String())
+		}
+	}
+	return "", nil
+}
+
 func (ctx *CurlContext) SetMethodIfNotSet(httpMethod string) {
 	if ctx.HttpVerb == "" {
 		ctx.HttpVerb = httpMethod
 	}
+}
+
+func (ctx *CurlContext) validateFormArgs() bool {
+	countMutuallyExclusiveActions := 0
+	if len(ctx.Upload_File) > 0 {
+		countMutuallyExclusiveActions += 1
+	}
+	if ctx.HasFormArgs() {
+		countMutuallyExclusiveActions += 1
+	}
+	if ctx.HasDataArgs() {
+		countMutuallyExclusiveActions += 1
+	}
+	if ctx.HeadOnly {
+		countMutuallyExclusiveActions += 1
+	}
+	return countMutuallyExclusiveActions <= 1
+}
+
+func (ctx *CurlContext) validateTlsArgs() bool {
+	countMutuallyExclusiveActions := 0
+	if ctx.Tls_MinVersion_1_0 {
+		countMutuallyExclusiveActions += 1
+	}
+	if ctx.Tls_MinVersion_1_1 {
+		countMutuallyExclusiveActions += 1
+	}
+	if ctx.Tls_MinVersion_1_2 {
+		countMutuallyExclusiveActions += 1
+	}
+	if ctx.Tls_MinVersion_1_3 {
+		countMutuallyExclusiveActions += 1
+	}
+	return countMutuallyExclusiveActions <= 1
 }
 
 func (ctx *CurlContext) SetHeaderIfNotSet(headerName string, headerValue string) {
