@@ -253,29 +253,29 @@ func (ctx *CurlContext) EmitSingleHttpResponseToOutputs(index int, resp *http.Re
 		respBody, _ = io.ReadAll(resp.Body)
 	}
 
-	seperator := []byte("\n\n")
+	separator := []byte("\n\n")
 	headerBody := []byte("")
 	if ctx.Verbose {
 		if request != nil {
-			headerBody = appendStrings(headerBody, seperator, DumpRequestHeaders(request))
+			headerBody = appendStrings(headerBody, separator, DumpRequestHeaders(request))
 		}
 		if resp.TLS != nil {
-			headerBody = appendStrings(headerBody, seperator, DumpTlsDetails(resp.TLS))
+			headerBody = appendStrings(headerBody, separator, DumpTlsDetails(resp.TLS))
 		}
 	}
-	headerBody = appendStrings(headerBody, seperator, DumpResponseHeaders(resp, ctx.Verbose))
+	headerBody = appendStrings(headerBody, separator, DumpResponseHeaders(resp, ctx.Verbose))
 	headerOutput, contentOutput := ctx.GetNextOutputsFromContext(index)
 
 	if ctx.HeadOnly {
 		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(headerOutput, headerBody))
 	} else if ctx.IncludeHeadersInMainOutput {
-		bytesOut := appendByteArrays(headerBody, seperator, respBody)
+		bytesOut := appendByteArrays(headerBody, separator, respBody)
 		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(contentOutput, bytesOut)) // do all at once
 		if headerOutput != contentOutput && respBody != nil {
 			cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(headerOutput, headerBody))
 		}
 	} else if headerOutput == contentOutput {
-		bytesOut := appendByteArrays(headerBody, seperator, respBody)
+		bytesOut := appendByteArrays(headerBody, separator, respBody)
 		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(contentOutput, bytesOut)) // do all at once
 	} else {
 		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(headerOutput, headerBody))
