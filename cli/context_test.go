@@ -16,6 +16,13 @@ func Test_SetupContextForRun_InvalidArgs(t *testing.T) {
 	args, errGot := ParseFlags(args, ctx)
 	assert.NotNil(t, errGot)
 	assert.Equal(t, curlerrors.ERROR_INVALID_ARGS, errGot.ExitCode)
+	assert.Equal(t, 0, len(args)) // args that begin with dash "-" will always fail if not recognized
+
+	ctx = new(curl.CurlContext)
+	args = []string{"http://thisisnotvalid"}
+	args, errGot = ParseFlags(args, ctx)
+	assert.Nil(t, errGot)
+	assert.Equal(t, 1, len(args))
 }
 
 func Test_SetupContextForRun_Test1(t *testing.T) {
