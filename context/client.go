@@ -229,7 +229,7 @@ func (ctx *CurlContext) GetCompleteResponse(index int, client *http.Client, requ
 			respReal = GetCurlResponse(client, r)
 			respsReal.Responses = append(respsReal.Responses, respReal)
 
-			if ctx.canStatusCodeRetry(respReal.HttpResponse.StatusCode) && retry < ctx.MaxRetries {
+			if respReal.HttpResponse != nil && ctx.canStatusCodeRetry(respReal.HttpResponse.StatusCode) && retry < ctx.MaxRetries {
 				time.Sleep(time.Duration(ctx.RetryDelaySeconds) * time.Second)
 			} else {
 				break
