@@ -13,6 +13,21 @@ curl https://google.com
 curl https://my.local.test:443 -k
 ```
 
+# Install
+
+## Binary Release
+
+You can manually download a binary release for Linux, MacOS, Windows or FreeBSD
+from the [releases](https://github.com/cdwiegand/go-curling/releases) page.
+
+## Go
+
+Please notice `latest` will install the dev version:
+
+```sh
+go install -ldflags="-s -w" -v github.com/cdwiegand/go-curling@latest
+```
+
 # Using in a Dockerfile
 ```
 COPY --from=cdwiegand/go-curling:latest /bin/curl /usr/bin/curl
