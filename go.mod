@@ -9,7 +9,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.10.0
 	github.com/youmark/pkcs8 v0.0.0-20240424034433-3c2c7870ae76
-	golang.org/x/net v0.30.0
+	golang.org/x/net v0.33.0
 )
 
 require (
