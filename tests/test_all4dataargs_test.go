@@ -1,4 +1,4 @@
-package main
+package curltestharness
 
 import (
 	"fmt"
@@ -7,14 +7,13 @@ import (
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
-	curltestharness "github.com/cdwiegand/go-curling/tests"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_All4DataArgs_Context(t *testing.T) {
-	testRun := curltestharness.BuildTestRun(t)
+	testRun := BuildTestRun(t)
 	testRun.SkipCompareJsonToRealCurl = true // we will test below, json contents will differ due to file paths
-	testRun.ContextBuilder = func(testrun *curltestharness.TestRun) *curl.CurlContext {
+	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
 		os.WriteFile(testRun.GetNextInputFile(), []byte("testdatastandardfile=a&b1=c"), 0666)
 		os.WriteFile(testRun.GetNextInputFile(), []byte("testdatabinaryfile=a&b2=c"), 0666)
 		os.WriteFile(testRun.GetNextInputFile(), []byte("testdataencodedfile=a&b"), 0666)
@@ -31,7 +30,7 @@ func Test_All4DataArgs_Context(t *testing.T) {
 			Data_RawAsIs:  []string{"testdataraw=@" + testrun.ListInputFiles[5]}, // actual file not used, just want to make sure the "@" comes across properly
 		}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *curltestharness.TestRun) {
+	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
 		t := testrun.Testing
 
 		assert.NotNil(t, json["form"])
@@ -56,8 +55,8 @@ func Test_All4DataArgs_Context(t *testing.T) {
 }
 
 func Test_All4DataArgs_CmdLine(t *testing.T) {
-	testRun := curltestharness.BuildTestRun(t)
-	testRun.CmdLineBuilder = func(testrun *curltestharness.TestRun) []string {
+	testRun := BuildTestRun(t)
+	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
 		return []string{
 			"https://httpbin.org/post", "-X", "POST",
 			"-d", "testdatastandardfile=a",
@@ -74,7 +73,7 @@ func Test_All4DataArgs_CmdLine(t *testing.T) {
 			"-o", testrun.GetOneOutputFile(),
 		}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *curltestharness.TestRun) {
+	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
 		t := testrun.Testing
 
 		assert.NotNil(t, json["form"])
@@ -129,9 +128,9 @@ func Test_All4DataArgs_CmdLine(t *testing.T) {
 }
 
 func Test_All4DataArgs_CmdLine2(t *testing.T) {
-	testRun := curltestharness.BuildTestRun(t)
+	testRun := BuildTestRun(t)
 	testRun.SkipCompareJsonToRealCurl = true // we will test below, json contents will differ due to file paths
-	testRun.CmdLineBuilder = func(testrun *curltestharness.TestRun) []string {
+	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
 		os.WriteFile(testRun.GetNextInputFile(), []byte("testdatastandardfile=a&b1=c"), 0666)
 		os.WriteFile(testRun.GetNextInputFile(), []byte("testdatabinaryfile=a&b2=c"), 0666)
 		os.WriteFile(testRun.GetNextInputFile(), []byte("testdataencodedfile=a&b"), 0666)
@@ -150,7 +149,7 @@ func Test_All4DataArgs_CmdLine2(t *testing.T) {
 			"-o", testrun.GetOneOutputFile(),
 		}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *curltestharness.TestRun) {
+	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
 		t := testrun.Testing
 
 		assert.NotNil(t, json["form"])

@@ -1,17 +1,16 @@
-package main
+package curltestharness
 
 import (
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
-	curltestharness "github.com/cdwiegand/go-curling/tests"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_PostWithMultipartInlineForm_CurlContext(t *testing.T) {
-	testRun := curltestharness.BuildTestRun(t)
-	testRun.ContextBuilder = func(testrun *curltestharness.TestRun) *curl.CurlContext {
+	testRun := BuildTestRun(t)
+	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
 		return &curl.CurlContext{
 			Urls:           []string{"https://httpbin.org/post"},
 			HttpVerb:       "POST",
@@ -23,14 +22,14 @@ func Test_PostWithMultipartInlineForm_CurlContext(t *testing.T) {
 	testRun.RunTestRun()
 }
 func Test_PostWithMultipartInlineForm_CmdLine(t *testing.T) {
-	testRun := curltestharness.BuildTestRun(t)
-	testRun.CmdLineBuilder = func(testrun *curltestharness.TestRun) []string {
+	testRun := BuildTestRun(t)
+	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
 		return []string{"https://httpbin.org/post", "-X", "POST", "-F", "test=one", "-o", testrun.GetOneOutputFile()}
 	}
 	testRun.SuccessHandler = helper_PostWithMultipartInlineForm_success
 	testRun.RunTestRun()
 }
-func helper_PostWithMultipartInlineForm_success(json map[string]interface{}, testrun *curltestharness.TestRun) {
+func helper_PostWithMultipartInlineForm_success(json map[string]interface{}, testrun *TestRun) {
 	t := testrun.Testing
 	assert.NotNil(t, json["form"])
 	form := json["form"].(map[string]any)
@@ -38,14 +37,14 @@ func helper_PostWithMultipartInlineForm_success(json map[string]interface{}, tes
 }
 
 func Test_PostWithMultipleDataArgs_CmdLine(t *testing.T) {
-	testRun := curltestharness.BuildTestRun(t)
-	testRun.CmdLineBuilder = func(testrun *curltestharness.TestRun) []string {
+	testRun := BuildTestRun(t)
+	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
 		return []string{"https://httpbin.org/post", "-X", "POST", "-d", "test1=one", "-d", "test2=two", "-d", "test3=three", "-o", testrun.GetOneOutputFile()}
 	}
 	testRun.SuccessHandler = helper_PostWithMultipleDataArgs_success
 	testRun.RunTestRun()
 }
-func helper_PostWithMultipleDataArgs_success(json map[string]interface{}, testrun *curltestharness.TestRun) {
+func helper_PostWithMultipleDataArgs_success(json map[string]interface{}, testrun *TestRun) {
 	t := testrun.Testing
 	assert.NotNil(t, json["form"])
 	form := json["form"].(map[string]any)

@@ -1,4 +1,4 @@
-package main
+package curltestharness
 
 import (
 	"encoding/json"
@@ -6,14 +6,13 @@ import (
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
-	curltestharness "github.com/cdwiegand/go-curling/tests"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_PostJsonInclude_CurlContext(t *testing.T) {
-	testRun := curltestharness.BuildTestRun(t)
-	testRun.ContextBuilder = func(testrun *curltestharness.TestRun) *curl.CurlContext {
+	testRun := BuildTestRun(t)
+	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("{\"test\": \"one\"}"), 0666)
 		return &curl.CurlContext{
 			HttpVerb:   "POST",
@@ -26,9 +25,9 @@ func Test_PostJsonInclude_CurlContext(t *testing.T) {
 	testRun.RunTestRun()
 }
 func Test_PostJsonInclude_CmdLine(t *testing.T) {
-	testRun := curltestharness.BuildTestRun(t)
-	testRun.DoNotTestAgainstCurl = !curltestharness.EnsureLocalCurlMinVersion(curltestharness.NewVersionInfo(7, 82, 0))
-	testRun.CmdLineBuilder = func(testrun *curltestharness.TestRun) []string {
+	testRun := BuildTestRun(t)
+	testRun.DoNotTestAgainstCurl = !EnsureLocalCurlMinVersion(NewVersionInfo(7, 82, 0))
+	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("{\"test\": \"one\"}"), 0666)
 		return []string{"https://httpbin.org/post", "-X", "POST", "--json", "@" + testrun.ListInputFiles[0], "-o", testrun.GetOneOutputFile()}
 	}
@@ -36,12 +35,12 @@ func Test_PostJsonInclude_CmdLine(t *testing.T) {
 	testRun.RunTestRun()
 }
 func Test_PostJsonSingleQuotes_CmdLine(t *testing.T) {
-	testRun := curltestharness.BuildTestRun(t)
-	testRun.DoNotTestAgainstCurl = !curltestharness.EnsureLocalCurlMinVersion(curltestharness.NewVersionInfo(7, 82, 0))
-	testRun.CmdLineBuilder = func(testrun *curltestharness.TestRun) []string {
+	testRun := BuildTestRun(t)
+	testRun.DoNotTestAgainstCurl = !EnsureLocalCurlMinVersion(NewVersionInfo(7, 82, 0))
+	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
 		return []string{"https://httpbin.org/post", "-X", "POST", "--json", "{ 'test': 'one' }", "-o", testrun.GetOneOutputFile()}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *curltestharness.TestRun) {
+	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
 		assert.NotNil(t, json["data"])
 		data := json["data"].(string)
 		assert.EqualValues(t, "{ 'test': 'one' }", data)
@@ -49,19 +48,19 @@ func Test_PostJsonSingleQuotes_CmdLine(t *testing.T) {
 	testRun.RunTestRun()
 }
 func Test_PostJsonDoubleQuotes_CmdLine(t *testing.T) {
-	testRun := curltestharness.BuildTestRun(t)
-	testRun.DoNotTestAgainstCurl = !curltestharness.EnsureLocalCurlMinVersionAndLog(t, curltestharness.NewVersionInfo(7, 82, 0))
-	testRun.CmdLineBuilder = func(testrun *curltestharness.TestRun) []string {
+	testRun := BuildTestRun(t)
+	testRun.DoNotTestAgainstCurl = !EnsureLocalCurlMinVersionAndLog(t, NewVersionInfo(7, 82, 0))
+	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
 		return []string{"https://httpbin.org/post", "-X", "POST", "--json", "{ \"test\": \"one\" }", "-o", testrun.GetOneOutputFile()}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *curltestharness.TestRun) {
+	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
 		assert.NotNil(t, json["data"])
 		data := json["data"].(string)
 		assert.EqualValues(t, "{ \"test\": \"one\" }", data)
 	}
 	testRun.RunTestRun()
 }
-func helper_PostJsonInclude_success(jsonIn map[string]interface{}, testrun *curltestharness.TestRun) {
+func helper_PostJsonInclude_success(jsonIn map[string]interface{}, testrun *TestRun) {
 	t := testrun.Testing
 
 	assert.NotNil(t, jsonIn["json"])

@@ -1,19 +1,17 @@
-package main
+package curltestharness
 
 import (
 	"os"
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
-	curltestharness "github.com/cdwiegand/go-curling/tests"
-
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_PutWithUpload_filesystemFilesForm_CurlContext(t *testing.T) {
-	testRun := curltestharness.BuildTestRun(t)
+	testRun := BuildTestRun(t)
 	expectedResult := []string{"test=one", "test=two"}
-	testRun.ContextBuilder = func(testrun *curltestharness.TestRun) *curl.CurlContext {
+	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
 		os.WriteFile(testrun.GetNextInputFile(), []byte(expectedResult[0]), 0666)
 		os.WriteFile(testrun.GetNextInputFile(), []byte(expectedResult[1]), 0666)
 		return &curl.CurlContext{
@@ -27,9 +25,9 @@ func Test_PutWithUpload_filesystemFilesForm_CurlContext(t *testing.T) {
 	testRun.RunTestRun()
 }
 func Test_PutWithUpload_filesystemFilesForm_CmdLine(t *testing.T) {
-	testRun := curltestharness.BuildTestRun(t)
+	testRun := BuildTestRun(t)
 	expectedResult := []string{"test=one", "test=two"}
-	testRun.CmdLineBuilder = func(testrun *curltestharness.TestRun) []string {
+	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
 		os.WriteFile(testrun.GetNextInputFile(), []byte(expectedResult[0]), 0666)
 		os.WriteFile(testrun.GetNextInputFile(), []byte(expectedResult[1]), 0666)
 		return []string{"https://httpbin.org/put", "-T", testrun.ListInputFiles[0], "https://httpbin.org/put", "-T", testrun.ListInputFiles[1], "-o", testrun.GetOneOutputFile(), "-o", testrun.GetOneOutputFile()}
@@ -37,7 +35,7 @@ func Test_PutWithUpload_filesystemFilesForm_CmdLine(t *testing.T) {
 	testRun.SuccessHandlerIndexed = helper_PutWithUpload_filesystemFilesForm_success
 	testRun.RunTestRun()
 }
-func helper_PutWithUpload_filesystemFilesForm_success(json map[string]interface{}, index int, testrun *curltestharness.TestRun) {
+func helper_PutWithUpload_filesystemFilesForm_success(json map[string]interface{}, index int, testrun *TestRun) {
 	t := testrun.Testing
 	expectedResult := []string{"test=one", "test=two"}
 	assert.NotNil(t, json["data"])
