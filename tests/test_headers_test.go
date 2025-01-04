@@ -26,11 +26,12 @@ func Test_Headers_CurlContext(t *testing.T) {
 	headersDict["X-Hello"] = "World"
 	headersDict["X-Good"] = "Times"
 	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
-		return &curl.CurlContext{
-			Urls:        []string{"https://httpbin.org/headers"},
-			HeadersDict: headersDict,
-			BodyOutput:  testrun.EnsureAtLeastOneOutputFiles(),
+		ctx := &curl.CurlContext{
+			Urls:       []string{"https://httpbin.org/headers"},
+			BodyOutput: testrun.EnsureAtLeastOneOutputFiles(),
 		}
+		ctx.SetHeadersFromDict(headersDict)
+		return ctx
 	}
 	testRun.SuccessHandler = helpers_Headers_success
 	testRun.RunTestRun()

@@ -68,7 +68,6 @@ type CurlContext struct {
 	Form_Multipart                     []string
 	Form_MultipartRaw                  []string
 	Headers                            []string
-	HeadersDict                        map[string]string
 	Tls_MinVersion_1_3                 bool
 	Tls_MinVersion_1_2                 bool
 	Tls_MinVersion_1_1                 bool
@@ -219,9 +218,6 @@ func (ctx *CurlContext) validateTlsArgs() bool {
 }
 
 func (ctx *CurlContext) SetHeaderIfNotSet(headerName string, headerValue string) {
-	if ctx.HeadersDict[headerName] != "" {
-		return
-	}
 	if len(ctx.Headers) > 0 {
 		for _, h := range ctx.Headers {
 			parts := strings.SplitN(h, ":", 2)
@@ -231,6 +227,28 @@ func (ctx *CurlContext) SetHeaderIfNotSet(headerName string, headerValue string)
 		}
 	}
 	ctx.Headers = append(ctx.Headers, headerName+": "+headerValue) // subsequent ones will override
+}
+
+func (ctx *CurlContext) SetHeadersFromDict(headersDict map[string]string) {
+	for key, value := range headersDict {
+		ctx.SetHeaderIfNotSet(key, value)
+	}
+}
+
+func (ctx *CurlContext) GetHeadersAsDict() map[string]string {
+	dict := make(map[string]string)
+	if len(ctx.Headers) > 0 {
+		for _, h := range ctx.Headers {
+			parts := strings.SplitN(h, ":", 2)
+			val := parts[1]
+			// as we have Header: Value - have to remove the initial string
+			if strings.HasPrefix(val, " ") && len(val) > 1 {
+				val = val[1:]
+			}
+			dict[parts[0]] = val
+		}
+	}
+	return dict
 }
 
 func (ctx *CurlContext) GetNextOutputsFromContext(index int) (headerOutput string, contentOutput string) {

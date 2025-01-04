@@ -157,11 +157,6 @@ func (ctx *CurlContext) SetupInitialHeadersOnRequest(request *http.Request) {
 			}
 		}
 	}
-	if len(ctx.HeadersDict) > 0 {
-		for k, v := range ctx.HeadersDict {
-			request.Header.Set(k, v)
-		}
-	}
 
 	if ctx.UserAgent != "" {
 		request.Header.Set("User-Agent", ctx.UserAgent)
