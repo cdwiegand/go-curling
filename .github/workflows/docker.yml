@@ -35,7 +35,7 @@ jobs:
           - os: linux/arm/v7
             baseimage: 1.23
           - os: linux/arm/v6
-            baseimage: 1.23
+            baseimage: 1.23-alpine
           - os: linux/mips64le
             baseimage: 1.23
           - os: linux/riscv64
