@@ -1,4 +1,6 @@
-FROM golang:1.23 AS build
+ARG SOURCE_TAG=1.23
+# if linux/riscv64 then SOURCE_TAG=1.23-alpine
+FROM golang:${SOURCE_TAG} AS build
 
 LABEL org.opencontainers.image.authors="Chris Wiegand"
 LABEL org.opencontainers.image.source="https://github.com/cdwiegand/go-curling"
@@ -13,6 +15,6 @@ COPY . /src
 RUN sed -i "s/##DEV##/`date -Idate`/" /src/main.go /src/cli/flags.go && \
     go build -o /bin/curl .
 
-FROM golang:alpine AS final
+FROM golang:${SOURCE_TAG} AS final
 COPY --from=build /bin/curl /bin/curl
 ENTRYPOINT [ "/bin/curl" ]
