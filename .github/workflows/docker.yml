@@ -22,7 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Log into Docker Hub Registry
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && ${{ vars.DOCKER_HUB_USERNAME != '' && vars.DOCKER_HUB_REPOSITORY != '' }}
         uses: docker/login-action@v2
         with:
           registry: docker.io
@@ -39,16 +39,25 @@ jobs:
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Build and push
+      - name: Build and push to Github Container Registry
         uses: docker/build-push-action@v6
         with:
           context: .
-          platforms: linux/amd64,linux/arm64,linux/ppc64le,linux/s390x,linux/386,linux/arm/v7,linux/arm/v6
-          # commented until golang:alpine built for it: linux/riscv64
-          # unavail platforms: linux/mips64le,linux/mips64 # no alpine image
+          platforms: linux/amd64,linux/arm64,linux/ppc64le,linux/s390x,linux/386,linux/arm/v7,linux/arm/v6,linux/riscv64,linux/mips64le
           push: true
           tags: |
             ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.actor }}/${{ github.repository }}:latest
-            docker.io/${{ vars.DOCKER_HUB_USERNAME }}/${{ vars.DOCKER_HUB_REPOSITORY }}:latest
-          # second ghcr URL is ONLY because I had published under that URL for over a year.. :(
+      - name: Push image to Docker Hub registry
+        if: ${{ vars.DOCKER_HUB_USERNAME != '' && vars.DOCKER_HUB_REPOSITORY != '' }}
+        run: |
+          docker buildx imagetools create \
+            --tag docker.io/${{ vars.DOCKER_HUB_USERNAME }}/${{ vars.DOCKER_HUB_REPOSITORY }}:latest \
+            ghcr.io/${{ github.repository }}:latest
+      # second ghcr URL is ONLY because I had published under that URL for over a year.. :(
+      - name: Push image to compatibility Github Container Registry
+        if: ${{ github.actor == 'cdwiegand' }}
+        run: |
+          docker buildx imagetools create \
+            --tag ghcr.io/cdwiegand/go-curling/go-curling:latest \
+            --tag docker.io/cdwiegand/go-curling:latest \
+            ghcr.io/${{ github.repository }}:latest
