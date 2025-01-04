@@ -57,24 +57,24 @@ builds:
       - arm64
 
 nfpms:
-  id: go-curling-package
-  package_name: go-curling
-  vendor: Chris Wiegand
-  homepage: https://github.com/cdwiegand/go-curling
-  maintainer: Chris Wiegand <chris@wiegandtech.net>
-  description: A re-creation of the venerable curl to make HTTP/S calls
-  license: MIT
-  builds:
-    - go-curling-linux
-  formats:
-    - apk
-    - deb
-    - rpm
-    - archlinux
-  deb:
-    lintian_overrides:
-      - statically-linked-binary
-      - changelog-file-missing-in-native-package
+  - id: go-curling-package
+    package_name: go-curling
+    vendor: Chris Wiegand
+    homepage: https://github.com/cdwiegand/go-curling
+    maintainer: Chris Wiegand <chris@wiegandtech.net>
+    description: A re-creation of the venerable curl to make HTTP/S calls
+    license: MIT
+    builds:
+      - go-curling-linux
+    formats:
+      - apk
+      - deb
+      - rpm
+      - archlinux
+    deb:
+      lintian_overrides:
+        - statically-linked-binary
+        - changelog-file-missing-in-native-package
 
 chocolateys:
   - name: go-curling
