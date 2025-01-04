@@ -1,8 +1,17 @@
+name: Build binary packages
+
 on:
   workflow_dispatch:
   push:
     tags:
       - "*"
+    branches:
+      - "main"
+  pull_request:
+    types: 
+      - "closed"
+    branches:
+      - "main"
 
 permissions:
   contents: write
@@ -22,7 +31,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.x"
-        id: go
 
       - name: run GoReleaser
         uses: goreleaser/goreleaser-action@v6
