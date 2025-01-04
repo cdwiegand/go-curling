@@ -1,4 +1,4 @@
-FROM golang:alpine AS build
+FROM golang:1.23 AS build
 
 LABEL org.opencontainers.image.authors="Chris Wiegand"
 LABEL org.opencontainers.image.source="https://github.com/cdwiegand/go-curling"
