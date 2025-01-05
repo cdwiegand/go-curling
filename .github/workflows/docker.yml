@@ -45,6 +45,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Set up Docker
+        uses: docker/setup-docker-action@v4
+        # using GCR's mirror since DockerHub keeps blocking my builds
+        with:
+          daemon-config: |
+            {
+              "registry-mirrors": ["https://mirror.gcr.io"]
+            }
+
       - name: Prepare
         run: |
           platform=${{ matrix.platform }}
@@ -105,6 +114,15 @@ jobs:
     needs:
       - build
     steps:
+      - name: Set up Docker
+        uses: docker/setup-docker-action@v4
+        # using GCR's mirror since DockerHub keeps blocking my builds
+        with:
+          daemon-config: |
+            {
+              "registry-mirrors": ["https://mirror.gcr.io"]
+            }
+
       - name: Download digests
         uses: actions/download-artifact@v4
         with:
