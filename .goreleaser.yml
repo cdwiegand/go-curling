@@ -8,7 +8,7 @@ before:
 
 env:
   - CGO_ENABLED=0
-  - GO_LD_FLAGS="-extldflags "-static" -s -w -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=goreleaser -X main.Version={{.Version}} -X main.Revision={{.ShortCommit}}"
+  - GO_LD_FLAGS=-extldflags "-static" -s -w -X main.commit={{.Commit}} -X main.date={{.Date}} -X main.builtBy=goreleaser -X main.Version={{.Version}} -X main.Revision={{.ShortCommit}}
 
 builds:
   - id: go-curling-linux
