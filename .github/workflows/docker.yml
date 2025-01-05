@@ -50,6 +50,12 @@ jobs:
           platform=${{ matrix.platform }}
           echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
 
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.GHCR_REPO }}
+
       - name: Log into Docker Hub Registry
         if: ${{ vars.DOCKER_HUB_USERNAME != '' }}
         uses: docker/login-action@v2
@@ -77,8 +83,7 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.platform.os }}
-          push: false
-          tags: "${{ env.GHCR_REPO }}:${{ env.DOCKER_TAG }}"
+          labels: ${{ steps.meta.outputs.labels }}
           build-args: SOURCE_TAG=${{ matrix.platform.baseimage }}         
           outputs: type=image,"name=${{ env.GHCR_REPO }}",push-by-digest=true,name-canonical=true,push=true
 
