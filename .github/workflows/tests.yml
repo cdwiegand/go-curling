@@ -2,7 +2,6 @@ name: Go Tests
 
 on: [push]
 
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -13,9 +12,12 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22.x'
+          check-latest: true
       - name: Install dependencies
         run: go get .
       - name: Build
         run: go build -v ./...
       - name: Test go-curling
         run: go test ./...
+      - name: Run security checks
+        run: gosec ./...

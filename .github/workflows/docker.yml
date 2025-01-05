@@ -1,14 +1,10 @@
 name: Build docker image
 
 on:
+  workflow_dispatch:
   push:
-    branches:
-      - "main"
-  pull_request:
-    types: 
-      - "closed"
-    branches:
-      - "main"
+    tags:
+      - "v*"
 
 permissions:
   contents: read
@@ -51,7 +47,7 @@ jobs:
           echo "PLATFORM_PAIR=${platform//\//-}" >> $GITHUB_ENV
 
       - name: Log into Docker Hub Registry
-        if: github.event_name != 'pull_request' && ${{ vars.DOCKER_HUB_USERNAME != '' && vars.DOCKER_HUB_REPOSITORY != '' }}
+        if: ${{ vars.DOCKER_HUB_USERNAME != '' }}
         uses: docker/login-action@v2
         with:
           registry: docker.io
@@ -59,7 +55,6 @@ jobs:
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
       - name: Log into Github Container Registry
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
@@ -74,7 +69,6 @@ jobs:
 
       - name: Build and push to Github Container Registry
         uses: docker/build-push-action@v6
-        if: ${{ matrix.platform != 'linux/riscv64' }}
         with:
           context: .
           platforms: ${{ matrix.platform.os }}
