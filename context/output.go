@@ -18,13 +18,13 @@ func (ctx *CurlContext) WriteToFileBytes(file string, body []byte) (err error) {
 	} else {
 		fileref, found := ctx.filesAlreadyStartedWriting[file]
 		if !found || fileref == nil {
-			fileref, err = os.OpenFile(file, os.O_WRONLY|os.O_CREATE, 0644)
+			fileref, err = os.OpenFile(file, os.O_WRONLY|os.O_CREATE, 0600) // #nosec G304
 			if err != nil {
 				return err
 			}
 			ctx.filesAlreadyStartedWriting[file] = fileref
 		} else {
-			fileref, err = os.OpenFile(file, os.O_WRONLY|os.O_APPEND, 0644)
+			fileref, err = os.OpenFile(file, os.O_WRONLY|os.O_APPEND, 0600) // #nosec G304
 			if err != nil {
 				return err
 			}

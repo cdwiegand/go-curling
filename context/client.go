@@ -28,7 +28,7 @@ type CurlResponse struct {
 
 func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
-	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: ctx.IgnoreBadCerts}
+	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: ctx.IgnoreBadCerts} // #nosec G402
 
 	if ctx.Tls_MinVersion_1_0 {
 		customTransport.TLSClientConfig.MinVersion = tls.VersionTLS10

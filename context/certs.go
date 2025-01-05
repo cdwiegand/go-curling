@@ -94,7 +94,7 @@ func (ctx *CurlContext) BuildRootCAsPool() (*x509.CertPool, *curlerrors.CurlErro
 	}
 
 	for _, h := range ctx.CaCertFile {
-		caBytes, error := os.ReadFile(h)
+		caBytes, error := os.ReadFile(h) // #nosec G304
 		if error != nil && ctx.FailEarly {
 			return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to open file %s", h), error)
 		}

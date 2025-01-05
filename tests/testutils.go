@@ -191,7 +191,7 @@ func (run *TestRun) RunTestRun() {
 }
 
 func ReadJson(file string) (res map[string]interface{}, raw string, err error) {
-	jsonFile, err := os.Open(file)
+	jsonFile, err := os.Open(file) // #nosec G304
 	if err != nil {
 		return nil, "", err
 	}
@@ -203,9 +203,11 @@ func ReadJson(file string) (res map[string]interface{}, raw string, err error) {
 	}
 
 	raw = string(byteValue)
-	json.Unmarshal(byteValue, &res)
+	if raw != "" {
+		err = json.Unmarshal(byteValue, &res)
+	}
 
-	return res, raw, nil
+	return res, raw, err
 }
 
 func CompareCurlCliOutput(run *TestRun, args []string, myJsonObjs []map[string]interface{}, myJsonRaws []string) error {

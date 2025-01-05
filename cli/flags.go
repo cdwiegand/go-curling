@@ -130,7 +130,7 @@ func ParseConfigFile(path string) ([]string, error) {
 	  oauth2-bearer:"this is a test"
 	*/
 
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304
 	if err != nil {
 		return nil, err
 	}
