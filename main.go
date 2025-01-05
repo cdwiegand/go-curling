@@ -39,7 +39,10 @@ func main() {
 	}
 
 	if ctx.Version {
-		os.Stdout.WriteString("go-curling build ##DEV##")
+		_, err := os.Stdout.WriteString("go-curling build ##DEV##")
+		if err != nil {
+			panic("Unable to write to stdout")
+		}
 		os.Exit(0)
 		return
 	}
@@ -122,7 +125,10 @@ func reportError(err *curlerrors.CurlError, ctx *curl.CurlContext) string {
 	}
 
 	if (!ctx.IsSilent && !ctx.SilentFail) || !ctx.ShowErrorEvenIfSilent {
-		ctx.WriteToFileBytes(ctx.ErrorOutput, []byte(entry))
+		oserr := ctx.WriteToFileBytes(ctx.ErrorOutput, []byte(entry))
+		if oserr != nil && !ctx.SilentFail {
+			panic(err)
+		}
 	}
 
 	return entry
