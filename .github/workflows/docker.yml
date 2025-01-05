@@ -10,6 +10,10 @@ permissions:
   contents: read
   packages: write
 
+env:
+  GHCR_REPO: ghcr.io/${{ github.repository }}
+  DOCKER_TAG: latest
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -54,7 +58,7 @@ jobs:
           username: ${{ vars.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      - name: Log into Github Container Registry
+      - name: Log into GitHub Container Registry
         uses: docker/login-action@v2
         with:
           registry: ghcr.io
@@ -67,26 +71,81 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push to Github Container Registry
+      - name: Build Docker Images
         uses: docker/build-push-action@v6
+        id: build
         with:
           context: .
           platforms: ${{ matrix.platform.os }}
           push: true
-          tags: ghcr.io/${{ github.repository }}:latest
-          build-args: SOURCE_TAG=${{ matrix.platform.baseimage }}
+          tags: "${{ env.GHCR_REPO }}:${{ env.DOCKER_TAG }}"
+          build-args: SOURCE_TAG=${{ matrix.platform.baseimage }}         
+          outputs: type=image,"name=${{ env.GHCR_REPO }}",push-by-digest=true,name-canonical=true,push=true
 
-      - name: Push images to Docker Hub registry
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"          
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    runs-on: ubuntu-latest
+    needs:
+      - build
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Log into Docker Hub Registry
+        if: ${{ vars.DOCKER_HUB_USERNAME != '' }}
+        uses: docker/login-action@v2
+        with:
+          registry: docker.io
+          username: ${{ vars.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+
+      - name: Log into GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.GHCR_REPO }}            
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Create manifest list and push to GitHub Container Registry
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.GHCR_REPO }}@sha256:%s ' *)           
+
+      - name: Create manifest list and push to Docker Hub container registry
         if: ${{ vars.DOCKER_HUB_USERNAME != '' && vars.DOCKER_HUB_REPOSITORY != '' }}
+        working-directory: /tmp/digests
         run: |
-          docker buildx imagetools create \
-            --tag docker.io/${{ vars.DOCKER_HUB_USERNAME }}/${{ vars.DOCKER_HUB_REPOSITORY }}:latest \
-            ghcr.io/${{ github.repository }}:latest
-
-      # second ghcr URL is ONLY because I had published under that URL for over a year.. :(
-      - name: Push images to compatibility Github Container Registry
-        if: ${{ github.actor == 'cdwiegand' }}
-        run: |
-          docker buildx imagetools create \
-            --tag ghcr.io/cdwiegand/go-curling/go-curling:latest \
-            ghcr.io/${{ github.repository }}:latest
+          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ vars.DOCKER_HUB_REPOSITORY }}@sha256:%s ' *)
