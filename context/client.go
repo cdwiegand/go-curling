@@ -142,7 +142,10 @@ func (ctx *CurlContext) BuildHttpRequest(url string, index int, submitDataFormsP
 		return nil, cerr
 	}
 
-	ctx.SetAuthenticationHeadersOnRequest(request)
+	cerr = ctx.SetAuthenticationHeadersOnRequest(request)
+	if cerr != nil {
+		return nil, cerr
+	}
 
 	return request, nil
 }
@@ -193,10 +196,17 @@ func (ctx *CurlContext) SetCookieHeadersOnRequest(request *http.Request) *curler
 	return nil
 }
 
-func (ctx *CurlContext) SetAuthenticationHeadersOnRequest(request *http.Request) {
+func (ctx *CurlContext) SetAuthenticationHeadersOnRequest(request *http.Request) *curlerrors.CurlError {
+	if request.Header == nil {
+		request.Header = http.Header{}
+	}
+
 	if ctx.UserAuth != "" {
 		auths := strings.SplitN(ctx.UserAuth, ":", 2) // this way password can contain a :
 		if len(auths) == 1 {
+			if ctx.IsSilent || ctx.SilentFail {
+				return curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "User auth requires username:password format, operating quiet so not prompting for value.")
+			}
 			fmt.Print("Enter password: ")
 			reader := bufio.NewReader(os.Stdin)
 			input, _ := reader.ReadString('\n') // if unable to read, use blank instead
@@ -209,6 +219,8 @@ func (ctx *CurlContext) SetAuthenticationHeadersOnRequest(request *http.Request)
 	if request.Header.Get("Authorization") == "" && ctx.OAuth2_BearerToken != "" {
 		request.Header.Set("Authorization", "Bearer "+ctx.OAuth2_BearerToken)
 	}
+
+	return nil
 }
 
 func (ctx *CurlContext) GetCompleteResponse(index int, client *http.Client, request *http.Request) (*CurlResponses, *curlerrors.CurlError) {
