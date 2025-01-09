@@ -301,20 +301,38 @@ func (ctx *CurlContext) EmitSingleHttpResponseToOutputs(index int, resp *http.Re
 	headerOutput, contentOutput := ctx.GetNextOutputsFromContext(index)
 
 	if ctx.HeadOnly {
-		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(headerOutput, headerBody))
+		err := ctx.WriteToFileBytes(headerOutput, headerBody)
+		if err != nil {
+			cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, err)
+		}
 	} else if ctx.IncludeHeadersInMainOutput {
 		bytesOut := appendByteArrays(headerBody, separator, respBody)
-		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(contentOutput, bytesOut)) // do all at once
+		err := ctx.WriteToFileBytes(contentOutput, bytesOut) // do all at once
+		if err != nil {
+			cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, err)
+		}
 		if headerOutput != contentOutput && respBody != nil {
-			cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(headerOutput, headerBody))
+			err = ctx.WriteToFileBytes(headerOutput, headerBody)
+			if err != nil {
+				cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, err)
+			}
 		}
 	} else if headerOutput == contentOutput {
 		bytesOut := appendByteArrays(headerBody, separator, respBody)
-		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(contentOutput, bytesOut)) // do all at once
+		err := ctx.WriteToFileBytes(contentOutput, bytesOut) // do all at once
+		if err != nil {
+			cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, err)
+		}
 	} else {
-		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(headerOutput, headerBody))
+		err := ctx.WriteToFileBytes(headerOutput, headerBody)
+		if err != nil {
+			cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, err)
+		}
 		if respBody != nil {
-			cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(contentOutput, respBody))
+			err = ctx.WriteToFileBytes(contentOutput, respBody)
+			if err != nil {
+				cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, err)
+			}
 		}
 	}
 	return cerrs
