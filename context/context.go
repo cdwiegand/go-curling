@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	curlerrors "github.com/cdwiegand/go-curling/errors"
-	cookieJar "github.com/orirawlings/persistent-cookiejar"
+	cookieJar "github.com/cdwiegand/persistent-cookiejar"
 	"golang.org/x/net/publicsuffix"
 )
 
