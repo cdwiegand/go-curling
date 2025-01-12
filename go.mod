@@ -13,6 +13,7 @@ require (
 )
 
 require (
+	github.com/cdwiegand/persistent-cookiejar v0.0.0-20250112005833-3020efbf92e9 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
