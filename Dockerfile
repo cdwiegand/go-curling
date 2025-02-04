@@ -20,7 +20,7 @@ LABEL org.opencontainers.image.title="go-curling"
 WORKDIR /src
 COPY . /src
 RUN sed -i "s/##DEV##/`date -Idate`/" /src/main.go /src/cli/flags.go && \
-    go build -o /bin/curl .
+    CGO_ENABLED=0 go build -o /bin/curl .
 
 FROM --platform=linux/amd64    alpine:3        AS run_amd64
 FROM --platform=linux/arm64    alpine:3        AS run_arm64
