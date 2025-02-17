@@ -1,12 +1,12 @@
-FROM --platform=linux/amd64    golang:1.23        AS build_amd64
-FROM --platform=linux/arm64    golang:1.23        AS build_arm64
-FROM --platform=linux/ppc64le  golang:1.23        AS build_ppc64le
-FROM --platform=linux/s390x    golang:1.23        AS build_s390x
-FROM --platform=linux/386      golang:1.23        AS build_386
-FROM --platform=linux/arm/v7   golang:1.23        AS build_arm
-FROM --platform=linux/arm/v6   golang:1.23-alpine AS build_armel
-FROM --platform=linux/mips64le golang:1.23        AS build_mips64le
-FROM --platform=linux/riscv64  golang:1.23-alpine AS build_riscv64
+FROM --platform=linux/amd64    golang:1.24        AS build_amd64
+FROM --platform=linux/arm64    golang:1.24        AS build_arm64
+FROM --platform=linux/ppc64le  golang:1.24        AS build_ppc64le
+FROM --platform=linux/s390x    golang:1.24        AS build_s390x
+FROM --platform=linux/386      golang:1.24        AS build_386
+FROM --platform=linux/arm/v7   golang:1.24        AS build_arm
+FROM --platform=linux/arm/v6   golang:1.24-alpine AS build_armel
+FROM --platform=linux/mips64le golang:1.24        AS build_mips64le
+FROM --platform=linux/riscv64  golang:1.24-alpine AS build_riscv64
 FROM build_${TARGETARCH} AS build
 
 LABEL org.opencontainers.image.authors="Chris Wiegand"
