@@ -9,13 +9,14 @@ func (ctx *CurlContext) WriteToFileBytes(file string, body []byte) (err error) {
 		ctx.filesAlreadyStartedWriting = make(map[string]*os.File)
 	}
 
-	if file == "" || file == "/dev/null" {
+	switch file {
+	case "", "/dev/null":
 		// do nothing
-	} else if file == "/dev/stderr" {
+	case "/dev/stderr":
 		_, err = os.Stderr.Write(body)
-	} else if file == "/dev/stdout" {
+	case "/dev/stdout":
 		_, err = os.Stdout.Write(body)
-	} else {
+	default:
 		fileref, found := ctx.filesAlreadyStartedWriting[file]
 		if !found || fileref == nil {
 			fileref, err = os.OpenFile(file, os.O_WRONLY|os.O_CREATE, 0600) // #nosec G304
