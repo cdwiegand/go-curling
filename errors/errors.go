@@ -45,10 +45,10 @@ func (cerrs *CurlErrorCollection) AppendCurlError(cerr *CurlError) {
 	}
 }
 func (cerrs *CurlErrorCollection) AppendCurlErrors(cerr CurlErrorCollection) {
-	if cerr.Errors != nil && len(cerr.Errors) > 0 {
+	if len(cerr.Errors) > 0 {
 		cerrs.Errors = append(cerrs.Errors, cerr.Errors...)
 	}
 }
 func (cerrs *CurlErrorCollection) HasError() bool {
-	return cerrs.Errors != nil && len(cerrs.Errors) > 0
+	return len(cerrs.Errors) > 0
 }
