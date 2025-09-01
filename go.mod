@@ -6,7 +6,7 @@ toolchain go1.24.1
 
 require (
 	github.com/cdwiegand/persistent-cookiejar v0.6.0
-	github.com/spf13/pflag v1.0.7
+	github.com/spf13/pflag v1.0.8
 	github.com/stretchr/testify v1.11.0
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
 	golang.org/x/net v0.43.0
