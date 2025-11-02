@@ -1,4 +1,4 @@
-package curltestharness
+package curltestharnessinvalid
 
 import (
 	"os"
@@ -6,11 +6,12 @@ import (
 
 	curl "github.com/cdwiegand/go-curling/context"
 	curlerrors "github.com/cdwiegand/go-curling/errors"
+	curltests "github.com/cdwiegand/go-curling/tests"
 )
 
 func Test_CannotMixDataFormUploadArgs_Context(t *testing.T) {
-	testRun := BuildTestRun(t)
-	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
+	testRun := curltests.BuildTestRun(t)
+	testRun.ContextBuilder = func(testrun *curltests.TestRun) *curl.CurlContext {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=one"), 0666)
 		return &curl.CurlContext{
 			Urls:          []string{"https://httpbin.org/post"},
@@ -20,16 +21,16 @@ func Test_CannotMixDataFormUploadArgs_Context(t *testing.T) {
 			Upload_File:   testrun.ListInputFiles,
 		}
 	}
-	testRun.SuccessHandlerIndexed = func(json map[string]interface{}, index int, testrun *TestRun) {
-		GenericTestErrorHandler(t, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "Should not succeed if -d and -T are mixed!"))
+	testRun.SuccessHandlerIndexed = func(json map[string]interface{}, index int, testrun *curltests.TestRun) {
+		curltests.GenericTestErrorHandler(t, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "Should not succeed if -d and -T are mixed!"))
 	}
-	testRun.ErrorHandler = func(err *curlerrors.CurlError, testrun *TestRun) {
+	testRun.ErrorHandler = func(err *curlerrors.CurlError, testrun *curltests.TestRun) {
 		// ok, it SHOULD fail, this is not a valid request!
 	}
 	testRun.RunTestRun()
 
-	testRun = BuildTestRun(t)
-	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
+	testRun = curltests.BuildTestRun(t)
+	testRun.ContextBuilder = func(testrun *curltests.TestRun) *curl.CurlContext {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=one"), 0666)
 		return &curl.CurlContext{
 			Urls:           []string{"https://httpbin.org/post"},
@@ -39,16 +40,16 @@ func Test_CannotMixDataFormUploadArgs_Context(t *testing.T) {
 			Form_Multipart: testrun.ListInputFiles,
 		}
 	}
-	testRun.SuccessHandlerIndexed = func(json map[string]interface{}, index int, testrun *TestRun) {
-		GenericTestErrorHandler(t, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "Should not succeed if -d and -F are mixed!"))
+	testRun.SuccessHandlerIndexed = func(json map[string]interface{}, index int, testrun *curltests.TestRun) {
+		curltests.GenericTestErrorHandler(t, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "Should not succeed if -d and -F are mixed!"))
 	}
-	testRun.ErrorHandler = func(err *curlerrors.CurlError, testrun *TestRun) {
+	testRun.ErrorHandler = func(err *curlerrors.CurlError, testrun *curltests.TestRun) {
 		// ok, it SHOULD fail, this is not a valid request!
 	}
 	testRun.RunTestRun()
 
-	testRun = BuildTestRun(t)
-	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
+	testRun = curltests.BuildTestRun(t)
+	testRun.ContextBuilder = func(testrun *curltests.TestRun) *curl.CurlContext {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=one"), 0666)
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=one"), 0666)
 		return &curl.CurlContext{
@@ -59,18 +60,18 @@ func Test_CannotMixDataFormUploadArgs_Context(t *testing.T) {
 			Form_Multipart: []string{testrun.ListInputFiles[1]},
 		}
 	}
-	testRun.SuccessHandlerIndexed = func(json map[string]interface{}, index int, testrun *TestRun) {
-		GenericTestErrorHandler(t, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "Should not succeed if -F and -T are mixed!"))
+	testRun.SuccessHandlerIndexed = func(json map[string]interface{}, index int, testrun *curltests.TestRun) {
+		curltests.GenericTestErrorHandler(t, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "Should not succeed if -F and -T are mixed!"))
 	}
-	testRun.ErrorHandler = func(err *curlerrors.CurlError, testrun *TestRun) {
+	testRun.ErrorHandler = func(err *curlerrors.CurlError, testrun *curltests.TestRun) {
 		// ok, it SHOULD fail, this is not a valid request!
 	}
 	testRun.RunTestRun()
 }
 
 func Test_CannotMixDataFormUploadArgs_CmdLine(t *testing.T) {
-	testRun := BuildTestRun(t)
-	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
+	testRun := curltests.BuildTestRun(t)
+	testRun.CmdLineBuilder = func(testrun *curltests.TestRun) []string {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=one"), 0666)
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=one"), 0666)
 		return []string{
@@ -80,16 +81,16 @@ func Test_CannotMixDataFormUploadArgs_CmdLine(t *testing.T) {
 			"-o", testrun.GetOneOutputFile(),
 		}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		GenericTestErrorHandler(t, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "Should not succeed if -d and -T are mixed!"))
+	testRun.SuccessHandler = func(json map[string]interface{}, testrun *curltests.TestRun) {
+		curltests.GenericTestErrorHandler(t, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "Should not succeed if -d and -T are mixed!"))
 	}
-	testRun.ErrorHandler = func(err *curlerrors.CurlError, testrun *TestRun) {
+	testRun.ErrorHandler = func(err *curlerrors.CurlError, testrun *curltests.TestRun) {
 		// ok, it SHOULD fail, this is not a valid request!
 	}
 	testRun.RunTestRun()
 
-	testRun = BuildTestRun(t)
-	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
+	testRun = curltests.BuildTestRun(t)
+	testRun.CmdLineBuilder = func(testrun *curltests.TestRun) []string {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=one"), 0666)
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=one"), 0666)
 		return []string{
@@ -99,16 +100,16 @@ func Test_CannotMixDataFormUploadArgs_CmdLine(t *testing.T) {
 			"-o", testrun.GetOneOutputFile(),
 		}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		GenericTestErrorHandler(t, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "Should not succeed if -d and -F are mixed!"))
+	testRun.SuccessHandler = func(json map[string]interface{}, testrun *curltests.TestRun) {
+		curltests.GenericTestErrorHandler(t, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "Should not succeed if -d and -F are mixed!"))
 	}
-	testRun.ErrorHandler = func(err *curlerrors.CurlError, testrun *TestRun) {
+	testRun.ErrorHandler = func(err *curlerrors.CurlError, testrun *curltests.TestRun) {
 		// ok, it SHOULD fail, this is not a valid request!
 	}
 	testRun.RunTestRun()
 
-	testRun = BuildTestRun(t)
-	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
+	testRun = curltests.BuildTestRun(t)
+	testRun.CmdLineBuilder = func(testrun *curltests.TestRun) []string {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=one"), 0666)
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=one"), 0666)
 		return []string{
@@ -118,10 +119,10 @@ func Test_CannotMixDataFormUploadArgs_CmdLine(t *testing.T) {
 			"-o", testrun.GetOneOutputFile(),
 		}
 	}
-	testRun.SuccessHandler = func(json map[string]interface{}, testrun *TestRun) {
-		GenericTestErrorHandler(t, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "Should not succeed if -F and -T are mixed!"))
+	testRun.SuccessHandler = func(json map[string]interface{}, testrun *curltests.TestRun) {
+		curltests.GenericTestErrorHandler(t, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "Should not succeed if -F and -T are mixed!"))
 	}
-	testRun.ErrorHandler = func(err *curlerrors.CurlError, testrun *TestRun) {
+	testRun.ErrorHandler = func(err *curlerrors.CurlError, testrun *curltests.TestRun) {
 		// ok, it SHOULD fail, this is not a valid request!
 	}
 	testRun.RunTestRun()

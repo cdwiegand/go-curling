@@ -1,17 +1,18 @@
-package curltestharness
+package curltestharnessforms
 
 import (
 	"os"
 	"testing"
 
 	curl "github.com/cdwiegand/go-curling/context"
+	curltests "github.com/cdwiegand/go-curling/tests"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_PostWithFilesystemBinaryForm_CurlContext(t *testing.T) {
-	testRun := BuildTestRun(t)
-	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
+	testRun := curltests.BuildTestRun(t)
+	testRun.ContextBuilder = func(testrun *curltests.TestRun) *curl.CurlContext {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("a&b=c"), 0666)
 		return &curl.CurlContext{
 			Urls:        []string{"https://httpbin.org/post"},
@@ -24,8 +25,8 @@ func Test_PostWithFilesystemBinaryForm_CurlContext(t *testing.T) {
 	testRun.RunTestRun()
 }
 func Test_PostWithFilesystemBinaryForm_CurlContext_directFile(t *testing.T) {
-	testRun := BuildTestRun(t)
-	testRun.ContextBuilder = func(testrun *TestRun) *curl.CurlContext {
+	testRun := curltests.BuildTestRun(t)
+	testRun.ContextBuilder = func(testrun *curltests.TestRun) *curl.CurlContext {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=a&b=c"), 0666)
 		return &curl.CurlContext{
 			Urls:        []string{"https://httpbin.org/post"},
@@ -38,8 +39,8 @@ func Test_PostWithFilesystemBinaryForm_CurlContext_directFile(t *testing.T) {
 	testRun.RunTestRun()
 }
 func Test_PostWithFilesystemBinaryForm_CmdLine(t *testing.T) {
-	testRun := BuildTestRun(t)
-	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
+	testRun := curltests.BuildTestRun(t)
+	testRun.CmdLineBuilder = func(testrun *curltests.TestRun) []string {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("a&b=c"), 0666)
 		return []string{"https://httpbin.org/post", "-X", "POST", "--data-binary", "test=@" + testrun.ListInputFiles[0], "-o", testrun.GetOneOutputFile()}
 	}
@@ -47,22 +48,22 @@ func Test_PostWithFilesystemBinaryForm_CmdLine(t *testing.T) {
 	testRun.RunTestRun()
 }
 func Test_PostWithFilesystemBinaryForm_CmdLine_directFile(t *testing.T) {
-	testRun := BuildTestRun(t)
-	testRun.CmdLineBuilder = func(testrun *TestRun) []string {
+	testRun := curltests.BuildTestRun(t)
+	testRun.CmdLineBuilder = func(testrun *curltests.TestRun) []string {
 		os.WriteFile(testrun.GetNextInputFile(), []byte("test=a&b=c"), 0666)
 		return []string{"https://httpbin.org/post", "-X", "POST", "--data-binary", "@" + testrun.ListInputFiles[0], "-o", testrun.GetOneOutputFile()}
 	}
 	testRun.SuccessHandler = helper_PostWithFilesystemBinaryForm_success_directFile
 	testRun.RunTestRun()
 }
-func helper_PostWithFilesystemBinaryForm_success(json map[string]interface{}, testrun *TestRun) {
+func helper_PostWithFilesystemBinaryForm_success(json map[string]interface{}, testrun *curltests.TestRun) {
 	t := testrun.Testing
 	assert.NotNil(t, json["form"])
 	form := json["form"].(map[string]any)
 	assert.True(t, form["test"].(string)[0] == '@')
 }
 
-func helper_PostWithFilesystemBinaryForm_success_directFile(json map[string]interface{}, testrun *TestRun) {
+func helper_PostWithFilesystemBinaryForm_success_directFile(json map[string]interface{}, testrun *curltests.TestRun) {
 	t := testrun.Testing
 	assert.NotNil(t, json["form"])
 	form := json["form"].(map[string]any)
