@@ -28,8 +28,8 @@ FROM --platform=linux/ppc64le  alpine:3        AS run_ppc64le
 FROM --platform=linux/s390x    alpine:3        AS run_s390x
 FROM --platform=linux/386      alpine:3        AS run_386
 FROM --platform=linux/arm/v7   alpine:3        AS run_arm
-FROM --platform=linux/arm/v6   alpine:3        AS run_armel
-FROM --platform=linux/mips64le debian:bookworm AS run_mips64le
+#FROM --platform=linux/arm/v6   alpine:3        AS run_armel
+#FROM --platform=linux/mips64le debian:bookworm AS run_mips64le
 FROM --platform=linux/riscv64  alpine:3        AS run_riscv64
 FROM run_${TARGETARCH}
 
