@@ -98,7 +98,7 @@ func reportError(err *curlerrors.CurlError, ctx *curl.CurlContext) string {
 	if err == nil {
 		return ""
 	}
-	entry := "Error: " + err.ErrorString + "."
+	entry := "Error: " + err.ErrorString + ".\n"
 
 	if err.ExitCode == curlerrors.ERROR_CANNOT_WRITE_TO_STDOUT {
 		// don't recurse (it called us to report the failure to write errors to a normal file)
