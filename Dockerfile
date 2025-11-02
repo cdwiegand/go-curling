@@ -4,8 +4,8 @@ FROM --platform=linux/ppc64le  golang:1.25.3            AS build_ppc64le
 FROM --platform=linux/s390x    golang:1.25.3            AS build_s390x
 FROM --platform=linux/386      golang:1.25.3            AS build_386
 FROM --platform=linux/arm/v7   golang:1.25.3            AS build_arm
-FROM --platform=linux/arm/v6   golang:1.25.3-alpine3.22 AS build_armel
-FROM --platform=linux/mips64le golang:1.25.3-bookworm   AS build_mips64le
+# FROM --platform=linux/arm/v6   golang:1.25.3-alpine3.22 AS build_armel
+# FROM --platform=linux/mips64le golang:1.25.3-bookworm   AS build_mips64le
 FROM --platform=linux/riscv64  golang:1.25.3            AS build_riscv64
 FROM build_${TARGETARCH} AS build
 
