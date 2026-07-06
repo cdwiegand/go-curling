@@ -133,7 +133,10 @@ func (ctx *CurlContext) BuildHttpRequest(url string, index int, submitDataFormsP
 	ctx.SetMethodIfNotSet("GET")
 
 	// now build
-	request, _ = http.NewRequest(strings.ToUpper(ctx.HttpVerb), url, body)
+	// url comes from the user's command line (this is a curl-like client whose purpose is
+	// to fetch user-specified URLs), not from an untrusted remote input, so the SSRF taint
+	// warning does not apply here.
+	request, _ = http.NewRequest(strings.ToUpper(ctx.HttpVerb), url, body) // #nosec G704
 
 	ctx.SetupInitialHeadersOnRequest(request)
 
