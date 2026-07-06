@@ -254,9 +254,8 @@ func (ctx *CurlContext) GetHeadersAsDict() map[string]string {
 func (ctx *CurlContext) GetNextOutputsFromContext(index int) (headerOutput string, contentOutput string) {
 	if len(ctx.BodyOutput) > index {
 		contentOutput = standardizeFileName(ctx.BodyOutput[index])
-	} else if len(ctx.BodyOutput) == 1 {
-		contentOutput = standardizeFileName(ctx.BodyOutput[0])
-	} else if len(ctx.BodyOutput) == 1 {
+	} else {
+		// more URLs than -o entries (or none given): curl sends the extras to stdout
 		contentOutput = DEFAULT_OUTPUT
 	}
 	if len(ctx.HeaderOutput) > index {
