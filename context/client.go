@@ -277,7 +277,10 @@ func (ctx *CurlContext) GetCompleteResponse(index int, client *http.Client, requ
 }
 
 func GetCurlResponse(client *http.Client, request *http.Request) *CurlResponse {
-	resp, err := client.Do(request)
+	// The request URL is supplied by the user on the command line (this is a curl-like
+	// client whose sole purpose is fetching user-specified URLs), not from an untrusted
+	// remote input, so the SSRF taint warning does not apply here.
+	resp, err := client.Do(request) // #nosec G704
 
 	respReal := new(CurlResponse)
 	respReal.Error = err
