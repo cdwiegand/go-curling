@@ -76,7 +76,7 @@ func main() {
 					forceExitCode := 0
 					for _, h := range cerrs.Errors {
 						lastErrorCode = h
-						reportError(cerr, ctx)
+						reportError(h, ctx)
 						if h.ExitCode != 0 {
 							forceExitCode = h.ExitCode
 						}
@@ -105,7 +105,7 @@ func reportError(err *curlerrors.CurlError, ctx *curl.CurlContext) string {
 		panic(err)
 	}
 
-	if (!ctx.IsSilent && !ctx.SilentFail) || !ctx.ShowErrorEvenIfSilent {
+	if (!ctx.IsSilent && !ctx.SilentFail) || ctx.ShowErrorEvenIfSilent {
 		oserr := ctx.WriteToFileBytes(ctx.ErrorOutput, []byte(entry))
 		if oserr != nil && !ctx.SilentFail {
 			panic(err)

@@ -56,7 +56,7 @@ func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 		customTransport.ForceAttemptHTTP2 = true
 	}
 	if ctx.Expect100Timeout > 0 {
-		customTransport.ExpectContinueTimeout = time.Duration(ctx.Expect100Timeout)
+		customTransport.ExpectContinueTimeout = time.Duration(ctx.Expect100Timeout * float32(time.Second))
 	}
 
 	var cerr *curlerrors.CurlError
@@ -179,11 +179,11 @@ func (ctx *CurlContext) SetCookieHeadersOnRequest(request *http.Request) *curler
 	if ctx.Cookies != nil {
 		for _, cookie := range ctx.Cookies {
 			if !strings.Contains(cookie, "=") { // curl does this, so... ugh, wish golang had .Net's System.IO.Path.Exists() in a safe way
-				// we use cookieJar's format, not curl's
+				// no '=' means the value is a filename to read cookies from (we use cookieJar's format, not curl's)
 				tmp, err := cookieJar.New(&cookieJar.Options{
-					Filename: ctx.CookieJar,
+					Filename: cookie,
 				})
-				if err != nil {
+				if err == nil && tmp != nil {
 					for _, y := range tmp.AllCookies() {
 						request.AddCookie(y)
 					}
@@ -315,11 +315,20 @@ func (ctx *CurlContext) ProcessResponseToOutputs(index int, resp *CurlResponses,
 	}
 
 	if resp.IsError {
-		// error
+		// server returned an error status (>= 400).
+		// -f/--fail suppresses the body; otherwise (including --fail-with-body) we still emit it (curl default).
 		if !ctx.SilentFail {
 			cerrs.AppendCurlErrors(ctx.EmitResponseToOutputs(index, resp, request))
 		}
-		os.Exit(curlerrors.ERROR_STATUS_CODE_FAILURE) // arbitrary
+		// only surface a failure exit code when the user asked to fail on server errors;
+		// plain curl returns 0 for a 4xx/5xx unless -f/--fail or --fail-with-body is given.
+		if ctx.SilentFail || ctx.FailWithBody {
+			statusCode := 0
+			if n := len(resp.Responses); n > 0 && resp.Responses[n-1].HttpResponse != nil {
+				statusCode = resp.Responses[n-1].HttpResponse.StatusCode
+			}
+			cerrs.AppendCurlError(curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, fmt.Sprintf("Server returned status code %d", statusCode)))
+		}
 	} else {
 		// success
 		cerrs.AppendCurlErrors(ctx.EmitResponseToOutputs(index, resp, request))
