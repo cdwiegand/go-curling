@@ -271,9 +271,11 @@ func CompareCurlCliOutput(run *TestRun, args []string, myJsonObjs []map[string]i
 }
 
 func (run *TestRun) FixLinuxRunIfWindowsToWslCurlRun(args []string) (cmd *exec.Cmd, inputs []string, outputs []string) {
-	cmd = exec.Command("curl", args...)
-	if runtime.GOOS == "windows" { // seriously, Microsoft?? Kill the curl powershell "alias"
-		cmd = exec.Command("curl.exe", args...)
+	// test-only harness: args are built by the test cases (not untrusted input) and we
+	// intentionally run the real curl binary to compare its output against go-curling.
+	cmd = exec.Command("curl", args...) // #nosec G204
+	if runtime.GOOS == "windows" {      // seriously, Microsoft?? Kill the curl powershell "alias"
+		cmd = exec.Command("curl.exe", args...) // #nosec G204
 	}
 	inputs = run.ListInputFiles
 	outputs = run.ListOutputFiles
@@ -282,9 +284,11 @@ func (run *TestRun) FixLinuxRunIfWindowsToWslCurlRun(args []string) (cmd *exec.C
 
 func RunCurlExe(args []string) (exitCode int, stdOut bytes.Buffer, stdErr bytes.Buffer, err error) {
 	var cmd *exec.Cmd
-	cmd = exec.Command("curl", args...)
-	if runtime.GOOS == "windows" { // seriously, Microsoft?? Kill the curl powershell "alias"
-		cmd = exec.Command("curl.exe", args...)
+	// test-only harness: args are built by the test cases (not untrusted input) and we
+	// intentionally run the real curl binary to compare its output against go-curling.
+	cmd = exec.Command("curl", args...) // #nosec G204
+	if runtime.GOOS == "windows" {      // seriously, Microsoft?? Kill the curl powershell "alias"
+		cmd = exec.Command("curl.exe", args...) // #nosec G204
 	}
 
 	var outb, errb bytes.Buffer
