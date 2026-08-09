@@ -159,7 +159,9 @@ func (ctx *CurlContext) SetupInitialHeadersOnRequest(request *http.Request) {
 		for _, h := range ctx.Headers {
 			parts := strings.SplitN(h, ":", 2)
 			if len(parts) == 2 {
-				request.Header.Set(parts[0], parts[1])
+				// trim the OWS around the name/value so "Name: value" does not send
+				// a leading space in the value (curl trims it; servers strip it too)
+				request.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
 			}
 		}
 	}
