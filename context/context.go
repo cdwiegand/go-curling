@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	curlerrors "github.com/cdwiegand/go-curling/errors"
 	cookieJar "github.com/cdwiegand/persistent-cookiejar"
@@ -78,6 +79,7 @@ type CurlContext struct {
 	RetryAllErrors                     bool
 	ForceTryHttp2                      bool
 	Expect100Timeout                   float32
+	WriteOut                           string
 
 	// internal:
 	filesAlreadyStartedWriting map[string]*os.File
@@ -97,6 +99,22 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 	if strings.Contains(ctx.UserAgent, "##DE") {
 		// ok, do the calc
 		ctx.UserAgent = strings.ReplaceAll(ctx.UserAgent, "##DE"+"V##", "dev-branch") // split as I want to keep proper date versions unmunged in source
+	}
+
+	// -w/--write-out with an @ prefix loads the format from a file (@- reads stdin), like curl
+	if strings.HasPrefix(ctx.WriteOut, "@") {
+		src := ctx.WriteOut[1:]
+		var data []byte
+		var rerr error
+		if src == "-" {
+			data, rerr = io.ReadAll(os.Stdin)
+		} else {
+			data, rerr = os.ReadFile(src) // #nosec G304
+		}
+		if rerr != nil {
+			return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, "Unable to read --write-out file "+src, rerr)
+		}
+		ctx.WriteOut = string(data)
 	}
 
 	if ctx.SilentFail || ctx.IsSilent {
@@ -271,19 +289,28 @@ func (ctx *CurlContext) GetNextOutputsFromContext(index int) (headerOutput strin
 func (ctx *CurlContext) EmitResponseToOutputs(index int, resp *CurlResponses, request *http.Request) (cerrs curlerrors.CurlErrorCollection) {
 	for i := 0; i < len(resp.Responses); i++ {
 		isLast := i == len(resp.Responses)-1
-		cerr := ctx.EmitSingleHttpResponseToOutputs(index, resp.Responses[i].HttpResponse, request, !isLast)
+		cr := resp.Responses[i]
+		bodyLen, cerr := ctx.EmitSingleHttpResponseToOutputs(index, cr.HttpResponse, request, !isLast)
+		if isLast {
+			// record the final transfer size/time for --write-out
+			resp.BodyBytes = bodyLen
+			if cr.Timings != nil {
+				cr.Timings.BodyDone = time.Now()
+			}
+		}
 		cerrs.AppendCurlErrors(cerr)
 		request = nil
 	}
 	return cerrs
 }
 
-func (ctx *CurlContext) EmitSingleHttpResponseToOutputs(index int, resp *http.Response, request *http.Request, headersOnly bool) (cerrs curlerrors.CurlErrorCollection) {
+func (ctx *CurlContext) EmitSingleHttpResponseToOutputs(index int, resp *http.Response, request *http.Request, headersOnly bool) (bodyLen int, cerrs curlerrors.CurlErrorCollection) {
 	// emit body
 	var respBody []byte
 	if !headersOnly && resp.Body != nil {
 		defer resp.Body.Close()
 		respBody, _ = io.ReadAll(resp.Body)
+		bodyLen = len(respBody)
 	}
 
 	separator := []byte("\n\n")
@@ -334,7 +361,7 @@ func (ctx *CurlContext) EmitSingleHttpResponseToOutputs(index int, resp *http.Re
 			}
 		}
 	}
-	return cerrs
+	return bodyLen, cerrs
 }
 
 func appendStrings(resp []byte, sepBody []byte, lines []string) []byte {

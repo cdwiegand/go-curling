@@ -67,11 +67,13 @@ func main() {
 					ctx.ProcessResponseToOutputs(index, resp, request)
 				}
 				reportError(cerr, ctx)
+				ctx.EmitWriteOut(resp)
 				if cerr.ExitCode != 0 && ctx.FailEarly {
 					os.Exit(cerr.ExitCode)
 				}
 			} else {
 				cerrs := ctx.ProcessResponseToOutputs(index, resp, request)
+				ctx.EmitWriteOut(resp)
 				if cerrs.HasError() {
 					forceExitCode := 0
 					for _, h := range cerrs.Errors {

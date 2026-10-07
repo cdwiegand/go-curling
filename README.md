@@ -115,6 +115,7 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 | `-A`/`--user-agent` | yes | User-agent to use (`go-curling/XXXXX` default, XXXXX is a version/build identifier) **(missing tests)** |
 | `-v`/`--verbose` | yes | **(missing tests)** |
 | `-V`/`--version` | yes | Return version and exit**(missing tests)** |
+| `-w`/`--write-out` | yes | After completion write out the given format to stdout; supports `%{variable}`, `%header{name}`, `%%` and `\n`/`\t`/`\r`; use `@file` or `@-` to load the format from a file/stdin |
 
 # General Arguments Notes
 
@@ -140,6 +141,7 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 * `--proto-default` specifies the default protocol for new URLs (default: http)
 * `--oauth2-bearer` specifies an OAuth2 Authorization header (Bearer: xxx) to pass to the first request.
 * `--location-trusted` permits redirects to retain authorization headers (basic auth or oauth2 bearer)
+* `--write-out` / `-w` prints a format string to stdout after the transfer completes (always to stdout, and not suppressed by `--silent`). In the format, `%{variable}` is replaced with a value, `%header{name}` with a response header, `%%` is a literal `%`, and `\n` `\t` `\r` are the usual escapes. An unknown `%{variable}` renders as empty. Prefix the whole value with `@` to read the format from a file (`@-` reads stdin). Supported variables: `http_code`/`response_code`, `http_version`, `content_type`, `num_headers`, `num_redirects`, `size_download`, `size_header`, `size_upload`/`size_request`, `url`, `url_effective`, `scheme`, `method`, `remote_ip`, `remote_port`, `local_ip`, `local_port`, `ssl_verify_result`, `exitcode`, `errormsg`, and the timers `time_namelookup`, `time_connect`, `time_appconnect`, `time_pretransfer`, `time_starttransfer`, `time_total`, `time_redirect`. Timers are measured against the final request; for a reused keep-alive connection the connection-phase timers report `0`, and `size_header` is a close approximation of the on-wire size.
 
 # File/Form/Upload Arguments Notes
 
@@ -301,7 +303,6 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--unix-socket`
 - `--url-query`
 - `--variable`
-- `-w`/`--write-out`
 - `--xattr`
 
 These are not applicable because `go-curling` does not support proxies yet:
