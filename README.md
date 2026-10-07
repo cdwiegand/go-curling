@@ -116,6 +116,17 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 | `-v`/`--verbose` | yes | **(missing tests)** |
 | `-V`/`--version` | yes | Return version and exit**(missing tests)** |
 | `-w`/`--write-out` | yes | After completion write out the given format to stdout; supports `%{variable}`, `%header{name}`, `%%` and `\n`/`\t`/`\r`; use `@file` or `@-` to load the format from a file/stdin |
+| `-m`/`--max-time` | yes | Maximum time in seconds the whole operation may take (bounds each hop of a redirect chain) |
+| `--connect-timeout` | yes | Maximum time in seconds to allow for establishing the connection |
+| `-O`/`--remote-name` | yes | Write output to a local file named like the remote file (from the URL path) |
+| `-J`/`--remote-header-name` | yes | With `-O`, prefer the filename from the `Content-Disposition` response header |
+| `-r`/`--range` | yes | Request a byte range, sent as a `Range: bytes=<range>` header (e.g. `0-499`) |
+| `-4`/`--ipv4` | yes | Resolve names to IPv4 addresses only |
+| `-6`/`--ipv6` | yes | Resolve names to IPv6 addresses only |
+| `--resolve` | yes | Resolve `HOST:PORT` to a given `ADDRESS` instead of using DNS (repeatable; `HOST` may be `*`) |
+| `--http2` | yes | Attempt an HTTP/2 connection |
+| `--http1.1` | yes | Use HTTP/1.1 (disables HTTP/2) |
+| `-0`/`--http1.0` | yes | Use HTTP/1.0 (disables HTTP/2 and keep-alive; wire version approximated by the Go client) |
 
 # General Arguments Notes
 
@@ -142,6 +153,12 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 * `--oauth2-bearer` specifies an OAuth2 Authorization header (Bearer: xxx) to pass to the first request.
 * `--location-trusted` permits redirects to retain authorization headers (basic auth or oauth2 bearer)
 * `--write-out` / `-w` prints a format string to stdout after the transfer completes (always to stdout, and not suppressed by `--silent`). In the format, `%{variable}` is replaced with a value, `%header{name}` with a response header, `%%` is a literal `%`, and `\n` `\t` `\r` are the usual escapes. An unknown `%{variable}` renders as empty. Prefix the whole value with `@` to read the format from a file (`@-` reads stdin). Supported variables: `http_code`/`response_code`, `http_version`, `content_type`, `num_headers`, `num_redirects`, `size_download`, `size_header`, `size_upload`/`size_request`, `url`, `url_effective`, `scheme`, `method`, `remote_ip`, `remote_port`, `local_ip`, `local_port`, `ssl_verify_result`, `exitcode`, `errormsg`, and the timers `time_namelookup`, `time_connect`, `time_appconnect`, `time_pretransfer`, `time_starttransfer`, `time_total`, `time_redirect`. Timers are measured against the final request; for a reused keep-alive connection the connection-phase timers report `0`, and `size_header` is a close approximation of the on-wire size.
+* `--max-time` / `-m` bounds the whole operation (connect + headers + body). Because redirects are followed with separate requests, it currently bounds each hop rather than the cumulative chain. `--connect-timeout` bounds only connection establishment.
+* `--remote-name` / `-O` saves the body to a file named after the last path segment of the URL (one per URL); it errors if the URL has no file name. `--remote-header-name` / `-J` prefers the `Content-Disposition` filename when present, with any directory components stripped for safety. `-O`/`-J` override `-o` for the body output.
+* `--range` / `-r` sends a `Range: bytes=<range>` header unless you already set a `Range` header via `-H`.
+* `--ipv4` / `-4` and `--ipv6` / `-6` force the address family when connecting (mutually exclusive).
+* `--resolve HOST:PORT:ADDRESS` dials the given address while keeping the original host for the request and TLS/SNI verification (like curl); `HOST` may be `*` to match any host on that port, and the option is repeatable.
+* `--http1.1` and `--http2` select the HTTP version (disabling the other); `--http1.0` / `-0` additionally sends `Connection: close`. Note the Go HTTP client always writes an HTTP/1.1 request line on the wire, so `--http1.0` is an approximation (keep-alive is disabled, but the wire version is not downgraded).
 
 # File/Form/Upload Arguments Notes
 
@@ -189,7 +206,6 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--cert-status`
 - `--cert-type `
 - `--ciphers`
-- `--connect-timeout`
 - `--connect-to`
 - `-C`/`--continue-at`
 - `--create-dirs`
@@ -221,9 +237,6 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--haproxy-protocol`
 - `--hsts`
 - `--http0.9`
-- `-0`/`--http1.0`
-- `--http1.1`
-- `--http2`
 - `--http2-prior-knowledge`
 - `--http3`
 - `--http3-only`
@@ -240,7 +253,6 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--local-port`
 - `-M`/`--manual`
 - `--max-filesize`
-- `-m`/`--max-time`
 - `--metalink`
 - `--negotiate`
 - `-n`/`--netrc`
@@ -262,16 +274,12 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--pinnedpubkey`
 - `-#`/`--progress-bar`
 - `-x`/`--proxy`
-- `-r`/`--range`
 - `--rate`
 - `--raw`
-- `-J`/`--remote-header-name`
-- `-O`/`--remote-name`
 - `--remote-name-all`
 - `-R`/`--remote-time`
 - `--remove-on-error`
 - `--request-target`
-- `--resolve`
 - `--retry-all-errors`
 - `--retry-connrefused`
 - `--retry-max-time`

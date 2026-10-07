@@ -80,6 +80,16 @@ type CurlContext struct {
 	ForceTryHttp2                      bool
 	Expect100Timeout                   float32
 	WriteOut                           string
+	MaxTime                            float32
+	ConnectTimeout                     float32
+	RemoteName                         bool
+	RemoteHeaderName                   bool
+	Range                              string
+	ForceIPv4                          bool
+	ForceIPv6                          bool
+	Resolve                            []string
+	Http1_0                            bool
+	Http1_1                            bool
 
 	// internal:
 	filesAlreadyStartedWriting map[string]*os.File
@@ -141,6 +151,20 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 		return curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "Cannot include more than one option from: --tls1/-1, --tlsv1.1, --tlsv1.2, --tlsv1.3")
 	}
 
+	if ctx.ForceIPv4 && ctx.ForceIPv6 {
+		return curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "Cannot include both -4/--ipv4 and -6/--ipv6")
+	}
+
+	httpVersions := 0
+	for _, set := range []bool{ctx.Http1_0, ctx.Http1_1, ctx.ForceTryHttp2} {
+		if set {
+			httpVersions++
+		}
+	}
+	if httpVersions > 1 {
+		return curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "Cannot include more than one option from: --http1.0, --http1.1, --http2")
+	}
+
 	if len(extraArgs) > 0 {
 		for _, h := range extraArgs {
 			if strings.HasPrefix(h, "-") {
@@ -152,6 +176,21 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 	s, err2 := ctx.setupUrlsFromArgs(extraArgs)
 	if err2 != nil {
 		return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_INVALID_URL, fmt.Sprintf("Could not parse url: %q", s), err2)
+	}
+
+	// -O/--remote-name (and -J, which falls back to it): derive the output file
+	// name from each URL's path. With -J, the Content-Disposition header can
+	// override this at emit time.
+	if ctx.RemoteName || ctx.RemoteHeaderName {
+		names := make([]string, len(ctx.Urls))
+		for i, u := range ctx.Urls {
+			name, nerr := remoteNameFromURL(u)
+			if nerr != nil {
+				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_INVALID_ARGS, "Cannot use -O/--remote-name", nerr)
+			}
+			names[i] = name
+		}
+		ctx.BodyOutput = names
 	}
 
 	jar, err := cookieJar.New(&cookieJar.Options{
@@ -325,6 +364,13 @@ func (ctx *CurlContext) EmitSingleHttpResponseToOutputs(index int, resp *http.Re
 	}
 	headerBody = appendStrings(headerBody, separator, DumpResponseHeaders(resp, ctx.Verbose))
 	headerOutput, contentOutput := ctx.GetNextOutputsFromContext(index)
+
+	// -J/--remote-header-name: prefer the Content-Disposition filename for the body output
+	if ctx.RemoteHeaderName && !headersOnly {
+		if fn := filenameFromContentDisposition(resp.Header.Get("Content-Disposition")); fn != "" {
+			contentOutput = fn
+		}
+	}
 
 	if ctx.HeadOnly {
 		err := ctx.WriteToFileBytes(headerOutput, headerBody)
