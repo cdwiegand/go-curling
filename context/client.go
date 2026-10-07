@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"os"
 	"sort"
@@ -17,13 +18,17 @@ import (
 )
 
 type CurlResponses struct {
-	Responses []*CurlResponse
-	IsError   bool
+	Responses      []*CurlResponse
+	IsError        bool
+	NumRedirects   int       // number of 3xx redirects actually followed
+	BodyBytes      int       // bytes of the final response body (for --write-out size_download)
+	OperationStart time.Time // when the whole operation (first request) began
 }
 type CurlResponse struct {
 	HttpResponse *http.Response
 	Error        error
 	NextUrl      *url.URL
+	Timings      *RequestTimings // per-request timing/connection info (for --write-out)
 }
 
 func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
@@ -230,6 +235,7 @@ func (ctx *CurlContext) SetAuthenticationHeadersOnRequest(request *http.Request)
 
 func (ctx *CurlContext) GetCompleteResponse(index int, client *http.Client, request *http.Request) (*CurlResponses, *curlerrors.CurlError) {
 	respsReal := new(CurlResponses)
+	respsReal.OperationStart = time.Now()
 
 	var cerr *curlerrors.CurlError
 	var urls []*http.Request
@@ -278,10 +284,41 @@ func (ctx *CurlContext) GetCompleteResponse(index int, client *http.Client, requ
 		}
 	}
 
+	respsReal.NumRedirects = len(urls) - 1
 	return respsReal, nil
 }
 
 func GetCurlResponse(client *http.Client, request *http.Request) *CurlResponse {
+	// record timing and connection details (used by --write-out)
+	timings := &RequestTimings{Start: time.Now()}
+	trace := &httptrace.ClientTrace{
+		DNSStart: func(httptrace.DNSStartInfo) { timings.DNSStart = time.Now() },
+		DNSDone:  func(httptrace.DNSDoneInfo) { timings.DNSDone = time.Now() },
+		ConnectDone: func(network, addr string, err error) {
+			if err == nil {
+				timings.ConnectDone = time.Now()
+			}
+		},
+		TLSHandshakeDone: func(cs tls.ConnectionState, err error) {
+			if err == nil {
+				timings.TLSDone = time.Now()
+			}
+		},
+		GotConn: func(info httptrace.GotConnInfo) {
+			timings.GotConn = time.Now()
+			if info.Conn != nil {
+				if ra := info.Conn.RemoteAddr(); ra != nil {
+					timings.RemoteAddr = ra.String()
+				}
+				if la := info.Conn.LocalAddr(); la != nil {
+					timings.LocalAddr = la.String()
+				}
+			}
+		},
+		GotFirstResponseByte: func() { timings.FirstByte = time.Now() },
+	}
+	request = request.WithContext(httptrace.WithClientTrace(request.Context(), trace))
+
 	// The request URL is supplied by the user on the command line (this is a curl-like
 	// client whose sole purpose is fetching user-specified URLs), not from an untrusted
 	// remote input, so the SSRF taint warning does not apply here.
@@ -290,6 +327,7 @@ func GetCurlResponse(client *http.Client, request *http.Request) *CurlResponse {
 	respReal := new(CurlResponse)
 	respReal.Error = err
 	respReal.HttpResponse = resp
+	respReal.Timings = timings
 
 	if respReal.HttpResponse != nil && respReal.HttpResponse.StatusCode >= 300 && respReal.HttpResponse.StatusCode <= 399 {
 		location := respReal.HttpResponse.Header.Get("Location")

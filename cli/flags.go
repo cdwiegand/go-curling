@@ -83,6 +83,7 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	flags.BoolVar(&ctx.RetryAllErrors, "retry-all-errors", false, "Retry on any error status (>= 400), not just transient ones (see --retry)")
 	flags.Float32Var(&ctx.Expect100Timeout, "expect100-timeout", 0, "Seconds to wait for a 100-continue response before sending the request body")
 	flags.BoolVarP(&ctx.ConvertPostFormIntoGet, "get", "G", false, "Convert -d/--data and related parameters into GET query string parameters")
+	flags.StringVarP(&ctx.WriteOut, "write-out", "w", "", "After completion, write out the given format to stdout; supports %{variable}, %header{name}, %% and \\n/\\t/\\r (use @file or @- to read the format from a file/stdin)")
 }
 
 func ParseFlags(args []string, ctx *curl.CurlContext) ([]string, *curlerrors.CurlError) {
