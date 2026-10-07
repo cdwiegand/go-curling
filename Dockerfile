@@ -1,4 +1,4 @@
-FROM golang:1.27.1 AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.1 AS build
 
 LABEL org.opencontainers.image.authors="Chris Wiegand"
 LABEL org.opencontainers.image.source="https://github.com/cdwiegand/go-curling"
@@ -8,10 +8,16 @@ LABEL org.opencontainers.image.description="Reimplementation of curl in golang"
 LABEL org.opencontainers.image.licenses="MIT"
 LABEL org.opencontainers.image.title="go-curling"
 
+# cross-compile for the target platform from the native build platform instead of
+# emulating the whole Go toolchain under QEMU per arch (much faster, identical output)
+ARG TARGETOS
+ARG TARGETARCH
+ARG TARGETVARIANT
+
 WORKDIR /src
 COPY . /src
 RUN sed -i "s/##DEV##/`date -Idate`/" /src/main.go /src/cli/flags.go && \
-    CGO_ENABLED=0 go build -o /bin/curl .
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} GOARM=${TARGETVARIANT#v} go build -o /bin/curl .
 
 FROM --platform=linux/amd64    alpine:3        AS run_amd64
 FROM --platform=linux/arm64    alpine:3        AS run_arm64
