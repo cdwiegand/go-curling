@@ -2,9 +2,11 @@ package context
 
 import (
 	"bufio"
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
@@ -60,8 +62,43 @@ func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 	if ctx.ForceTryHttp2 {
 		customTransport.ForceAttemptHTTP2 = true
 	}
+	if ctx.Http1_0 || ctx.Http1_1 {
+		// force HTTP/1.x: disable HTTP/2 negotiation (ALPN) and the h2 upgrade.
+		// note: Go's client still speaks HTTP/1.1 on the wire, so --http1.0 is an
+		// approximation (we also set Connection: close on the request for it).
+		customTransport.ForceAttemptHTTP2 = false
+		customTransport.TLSClientConfig.NextProtos = []string{"http/1.1"}
+		customTransport.TLSNextProto = map[string]func(authority string, c *tls.Conn) http.RoundTripper{}
+	}
 	if ctx.Expect100Timeout > 0 {
 		customTransport.ExpectContinueTimeout = time.Duration(ctx.Expect100Timeout * float32(time.Second))
+	}
+
+	// custom dialer for --connect-timeout, -4/-6 (address family) and --resolve
+	dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+	if ctx.ConnectTimeout > 0 {
+		dialer.Timeout = time.Duration(ctx.ConnectTimeout * float32(time.Second))
+	}
+	forceNetwork := ""
+	if ctx.ForceIPv4 {
+		forceNetwork = "tcp4"
+	} else if ctx.ForceIPv6 {
+		forceNetwork = "tcp6"
+	}
+	resolveExact, resolveWild := ctx.buildResolveMaps()
+	customTransport.DialContext = func(c context.Context, network, addr string) (net.Conn, error) {
+		if forceNetwork != "" && strings.HasPrefix(network, "tcp") {
+			network = forceNetwork
+		}
+		// --resolve: dial a fixed address but keep the original host for TLS/SNI
+		if mapped, ok := resolveExact[addr]; ok {
+			addr = mapped
+		} else if _, port, err := net.SplitHostPort(addr); err == nil {
+			if mapped, ok := resolveWild[port]; ok {
+				addr = mapped
+			}
+		}
+		return dialer.DialContext(c, network, addr)
 	}
 
 	var cerr *curlerrors.CurlError
@@ -85,13 +122,44 @@ func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 		customTransport.WriteBufferSize = 0
 	}
 
-	return &http.Client{
+	client := &http.Client{
 		Transport: customTransport,
 		Jar:       ctx.Jar,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse // I want to handle them myself
 		},
-	}, nil
+	}
+	if ctx.MaxTime > 0 {
+		// applies per request (connect + headers + body); since we follow redirects
+		// ourselves with separate calls, it bounds each hop rather than the whole chain
+		client.Timeout = time.Duration(ctx.MaxTime * float32(time.Second))
+	}
+	return client, nil
+}
+
+// buildResolveMaps turns --resolve entries (HOST:PORT:ADDRESS, HOST may be '*')
+// into lookup maps: exact "host:port" -> "address:port", and wildcard port ->
+// "address:port".
+func (ctx *CurlContext) buildResolveMaps() (exact map[string]string, wild map[string]string) {
+	exact = map[string]string{}
+	wild = map[string]string{}
+	for _, entry := range ctx.Resolve {
+		if strings.HasPrefix(entry, "-") {
+			continue // curl uses a leading '-' to remove a resolution; we just ignore those
+		}
+		parts := strings.SplitN(entry, ":", 3)
+		if len(parts) != 3 {
+			continue
+		}
+		host, port, addr := parts[0], parts[1], strings.Trim(parts[2], "[]")
+		target := net.JoinHostPort(addr, port)
+		if host == "*" {
+			wild[port] = target
+		} else {
+			exact[net.JoinHostPort(host, port)] = target
+		}
+	}
+	return exact, wild
 }
 
 func (ctx *CurlContext) BuildHttpRequest(url string, index int, submitDataFormsPostContents bool, submitAuthenticationHeaders bool) (request *http.Request, err *curlerrors.CurlError) {
@@ -143,6 +211,10 @@ func (ctx *CurlContext) BuildHttpRequest(url string, index int, submitDataFormsP
 	// warning does not apply here.
 	request, _ = http.NewRequest(strings.ToUpper(ctx.HttpVerb), url, body) // #nosec G704
 
+	if ctx.Http1_0 {
+		request.Close = true // HTTP/1.0 implies no keep-alive
+	}
+
 	ctx.SetupInitialHeadersOnRequest(request)
 
 	cerr := ctx.SetCookieHeadersOnRequest(request)
@@ -182,6 +254,9 @@ func (ctx *CurlContext) SetupInitialHeadersOnRequest(request *http.Request) {
 	if request.Header.Get("Accept") == "" {
 		// curl default, so matching
 		request.Header.Set("Accept", "*/*")
+	}
+	if ctx.Range != "" && request.Header.Get("Range") == "" {
+		request.Header.Set("Range", "bytes="+ctx.Range)
 	}
 }
 

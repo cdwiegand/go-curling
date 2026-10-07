@@ -84,6 +84,16 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	flags.Float32Var(&ctx.Expect100Timeout, "expect100-timeout", 0, "Seconds to wait for a 100-continue response before sending the request body")
 	flags.BoolVarP(&ctx.ConvertPostFormIntoGet, "get", "G", false, "Convert -d/--data and related parameters into GET query string parameters")
 	flags.StringVarP(&ctx.WriteOut, "write-out", "w", "", "After completion, write out the given format to stdout; supports %{variable}, %header{name}, %% and \\n/\\t/\\r (use @file or @- to read the format from a file/stdin)")
+	flags.Float32VarP(&ctx.MaxTime, "max-time", "m", 0, "Maximum time in seconds that the whole operation may take (0 = no limit)")
+	flags.Float32Var(&ctx.ConnectTimeout, "connect-timeout", 0, "Maximum time in seconds to allow for establishing the connection (0 = default)")
+	flags.BoolVarP(&ctx.RemoteName, "remote-name", "O", false, "Write output to a local file named like the remote file (from the URL path)")
+	flags.BoolVarP(&ctx.RemoteHeaderName, "remote-header-name", "J", false, "With -O, prefer the filename from the Content-Disposition response header")
+	flags.StringVarP(&ctx.Range, "range", "r", "", "Request a byte range, sent as a 'Range: bytes=<range>' header (e.g. 0-499)")
+	flags.BoolVarP(&ctx.ForceIPv4, "ipv4", "4", false, "Resolve names to IPv4 addresses only")
+	flags.BoolVarP(&ctx.ForceIPv6, "ipv6", "6", false, "Resolve names to IPv6 addresses only")
+	flags.StringArrayVar(&ctx.Resolve, "resolve", nil, "Resolve HOST:PORT to ADDRESS instead of using DNS (repeatable; HOST may be '*')")
+	flags.BoolVarP(&ctx.Http1_0, "http1.0", "0", false, "Use HTTP/1.0 (disables HTTP/2 and keep-alive; wire version is approximated by the Go client)")
+	flags.BoolVar(&ctx.Http1_1, "http1.1", false, "Use HTTP/1.1 (disables HTTP/2)")
 }
 
 func ParseFlags(args []string, ctx *curl.CurlContext) ([]string, *curlerrors.CurlError) {
