@@ -25,6 +25,8 @@ type CurlResponses struct {
 	NumRedirects   int       // number of 3xx redirects actually followed
 	BodyBytes      int       // bytes of the final response body (for --write-out size_download)
 	OperationStart time.Time // when the whole operation (first request) began
+	Error          *curlerrors.CurlError
+	cancel         context.CancelFunc
 }
 type CurlResponse struct {
 	HttpResponse *http.Response
@@ -35,6 +37,9 @@ type CurlResponse struct {
 
 func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 	customTransport := http.DefaultTransport.(*http.Transport).Clone()
+	if err := ctx.configureProxy(customTransport); err != nil {
+		return nil, err
+	}
 	customTransport.TLSClientConfig = &tls.Config{InsecureSkipVerify: ctx.IgnoreBadCerts} // #nosec G402
 
 	if ctx.Tls_MinVersion_1_0 {
@@ -78,6 +83,7 @@ func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 	dialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
 	if ctx.ConnectTimeout > 0 {
 		dialer.Timeout = time.Duration(ctx.ConnectTimeout * float32(time.Second))
+		customTransport.TLSHandshakeTimeout = time.Duration(ctx.ConnectTimeout * float32(time.Second))
 	}
 	forceNetwork := ""
 	if ctx.ForceIPv4 {
@@ -87,6 +93,9 @@ func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 	}
 	resolveExact, resolveWild := ctx.buildResolveMaps()
 	customTransport.DialContext = func(c context.Context, network, addr string) (net.Conn, error) {
+		if ctx.UnixSocket != "" {
+			return dialer.DialContext(c, "unix", ctx.UnixSocket)
+		}
 		if forceNetwork != "" && strings.HasPrefix(network, "tcp") {
 			network = forceNetwork
 		}
@@ -128,11 +137,6 @@ func (ctx *CurlContext) BuildClient() (*http.Client, *curlerrors.CurlError) {
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse // I want to handle them myself
 		},
-	}
-	if ctx.MaxTime > 0 {
-		// applies per request (connect + headers + body); since we follow redirects
-		// ourselves with separate calls, it bounds each hop rather than the whole chain
-		client.Timeout = time.Duration(ctx.MaxTime * float32(time.Second))
 	}
 	return client, nil
 }
@@ -209,7 +213,11 @@ func (ctx *CurlContext) BuildHttpRequest(url string, index int, submitDataFormsP
 	// url comes from the user's command line (this is a curl-like client whose purpose is
 	// to fetch user-specified URLs), not from an untrusted remote input, so the SSRF taint
 	// warning does not apply here.
-	request, _ = http.NewRequest(strings.ToUpper(ctx.HttpVerb), url, body) // #nosec G704
+	var requestErr error
+	request, requestErr = http.NewRequest(strings.ToUpper(ctx.HttpVerb), url, body) // #nosec G704
+	if requestErr != nil {
+		return nil, curlerrors.NewCurlErrorFromError(curlerrors.ERROR_INVALID_URL, requestErr)
+	}
 
 	if ctx.Http1_0 {
 		request.Close = true // HTTP/1.0 implies no keep-alive
@@ -217,14 +225,17 @@ func (ctx *CurlContext) BuildHttpRequest(url string, index int, submitDataFormsP
 
 	ctx.SetupInitialHeadersOnRequest(request)
 
-	cerr := ctx.SetCookieHeadersOnRequest(request)
-	if cerr != nil {
-		return nil, cerr
-	}
-
-	cerr = ctx.SetAuthenticationHeadersOnRequest(request)
-	if cerr != nil {
-		return nil, cerr
+	if submitAuthenticationHeaders {
+		if cerr := ctx.SetCookieHeadersOnRequest(request); cerr != nil {
+			return nil, cerr
+		}
+		if cerr := ctx.SetAuthenticationHeadersOnRequest(request); cerr != nil {
+			return nil, cerr
+		}
+	} else {
+		request.Header.Del("Authorization")
+		request.Header.Del("Cookie")
+		request.URL.User = nil
 	}
 
 	return request, nil
@@ -308,61 +319,6 @@ func (ctx *CurlContext) SetAuthenticationHeadersOnRequest(request *http.Request)
 	return nil
 }
 
-func (ctx *CurlContext) GetCompleteResponse(index int, client *http.Client, request *http.Request) (*CurlResponses, *curlerrors.CurlError) {
-	respsReal := new(CurlResponses)
-	respsReal.OperationStart = time.Now()
-
-	var cerr *curlerrors.CurlError
-	var urls []*http.Request
-	urls = append(urls, request)
-	for i := 0; i < len(urls) && (ctx.MaxRedirects <= 0 || i < ctx.MaxRedirects); i++ {
-		r := urls[i]
-		var respReal *CurlResponse
-		for retry := 0; retry <= ctx.MaxRetries; retry++ {
-			respReal = GetCurlResponse(client, r)
-			respsReal.Responses = append(respsReal.Responses, respReal)
-
-			if respReal.HttpResponse != nil && ctx.canStatusCodeRetry(respReal.HttpResponse.StatusCode) && retry < ctx.MaxRetries {
-				time.Sleep(time.Duration(ctx.RetryDelaySeconds) * time.Second)
-			} else {
-				break
-			}
-		}
-
-		respsReal.IsError = (respReal.HttpResponse == nil || respReal.HttpResponse.StatusCode >= 400)
-
-		if respReal.Error != nil {
-			respsReal.IsError = true
-			cerr = curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_NO_RESPONSE, fmt.Sprintf("Was unable to query URL %v", request.URL), respReal.Error)
-			return respsReal, cerr
-		}
-
-		if ctx.FollowRedirects && respReal.NextUrl != nil &&
-			respReal.HttpResponse.StatusCode >= 300 && respReal.HttpResponse.StatusCode <= 399 {
-			var newReq *http.Request
-			retainData := true
-
-			if request.Method == "POST" {
-				retainData = (respReal.HttpResponse.StatusCode == 301 && ctx.Allow301Post) ||
-					(respReal.HttpResponse.StatusCode == 302 && ctx.Allow302Post) ||
-					(respReal.HttpResponse.StatusCode == 303 && ctx.Allow303Post)
-			}
-			newReq, cerr = ctx.BuildHttpRequest(respReal.NextUrl.String(), index, retainData, ctx.RedirectsKeepAuthenticationHeaders)
-			if cerr != nil {
-				return respsReal, cerr
-			}
-
-			if !retainData {
-				newReq.Method = "GET"
-			}
-			urls = append(urls, newReq)
-		}
-	}
-
-	respsReal.NumRedirects = len(urls) - 1
-	return respsReal, nil
-}
-
 func GetCurlResponse(client *http.Client, request *http.Request) *CurlResponse {
 	// record timing and connection details (used by --write-out)
 	timings := &RequestTimings{Start: time.Now()}
@@ -429,7 +385,21 @@ func (ctx *CurlContext) canStatusCodeRetry(statusCode int) bool {
 }
 
 func (ctx *CurlContext) ProcessResponseToOutputs(index int, resp *CurlResponses, request *http.Request) (cerrs curlerrors.CurlErrorCollection) {
-	err2 := ctx.Jar.Save() // is ignored if jar's filename is empty
+	ctx.bodyOutputsWritten = nil
+	defer resp.Close()
+	defer func() {
+		if ctx.RemoveOnError && cerrs.HasError() {
+			cerrs.AppendCurlErrors(ctx.removeBodyOutputs())
+		}
+		if cerrs.HasError() {
+			resp.Error = cerrs.Errors[len(cerrs.Errors)-1]
+			resp.IsError = true
+		}
+	}()
+	var err2 error
+	if ctx.Jar != nil {
+		err2 = ctx.Jar.Save()
+	} // ignored if jar's filename is empty
 	if err2 != nil {
 		cerrs.AppendCurlError(curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_WRITE_FILE, "Failed to save cookies to jar", err2))
 		// continue anyways!

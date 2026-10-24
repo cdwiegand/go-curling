@@ -19,6 +19,7 @@ func Test_CookieRoundTrip_CurlContext(t *testing.T) {
 			BodyOutput:      testrun.EnsureAtLeastOneOutputFiles(),
 			CookieJar:       cookieFile,
 			FollowRedirects: true,
+			MaxRedirects: 50,
 		}
 	}
 	testRun.SuccessHandler = helper_CookieRoundTrip_success
@@ -31,6 +32,7 @@ func Test_CookieRoundTrip_CurlContext(t *testing.T) {
 			BodyOutput:      testrun.EnsureAtLeastOneOutputFiles(),
 			CookieJar:       cookieFile,
 			FollowRedirects: true,
+			MaxRedirects: 50,
 		}
 	}
 	testRun.SuccessHandler = helper_CookieRoundTrip_success

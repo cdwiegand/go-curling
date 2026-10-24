@@ -19,6 +19,15 @@ func SetupConfigParseOnlyArgs(parseCtx *ParseOnlyArgs, flags *flag.FlagSet) {
 }
 
 func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
+	flags.SetNormalizeFunc(func(_ *flag.FlagSet, name string) flag.NormalizedName {
+		switch name {
+		case "ca-cert":
+			name = "cacert"
+		case "ca-path":
+			name = "capath"
+		}
+		return flag.NormalizedName(name)
+	})
 	empty := []string{}
 	flags.BoolVarP(&ctx.Version, "version", "V", false, "Return version and exit")
 	flags.BoolVarP(&ctx.Verbose, "verbose", "v", false, "Logs all headers, and body to output")
@@ -30,11 +39,11 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	flags.StringVarP(&ctx.UserAuth, "user", "u", "", "User:password for HTTP authentication")
 	flags.StringVarP(&ctx.Referer, "referer", "e", "", "Referer URL to use with HTTP request")
 	flags.StringArrayVar(&ctx.Urls, "url", []string{}, "Requesting URL")
-	flags.BoolVarP(&ctx.SilentFail, "fail", "f", false, "If fail do not emit contents just return fail exit code (-6)")
+	flags.BoolVarP(&ctx.SilentFail, "fail", "f", false, "On HTTP errors, suppress the response body and exit with code 22")
 	flags.BoolVar(&ctx.FailEarly, "fail-early", false, "If any URL fails, stop immediately and do not continue.")
-	flags.BoolVar(&ctx.FailWithBody, "fail-with-body", false, "If fail emit contents and return fail exit code (-6)")
+	flags.BoolVar(&ctx.FailWithBody, "fail-with-body", false, "On HTTP errors, emit the response body and exit with code 22")
 	flags.BoolVarP(&ctx.IgnoreBadCerts, "insecure", "k", false, "Ignore invalid SSL certificates")
-	flags.BoolVarP(&ctx.IsSilent, "silent", "s", false, "Silence all program console output")
+	flags.BoolVarP(&ctx.IsSilent, "silent", "s", false, "Suppress diagnostics (response data is still written)")
 	flags.BoolVarP(&ctx.ShowErrorEvenIfSilent, "show-error", "S", false, "Show error info even if silent mode on")
 	flags.BoolVarP(&ctx.HeadOnly, "head", "I", false, "Only return headers (ignoring body content)")
 	flags.BoolVarP(&ctx.IncludeHeadersInMainOutput, "include", "i", false, "Include headers (prepended to body content)")
@@ -52,8 +61,8 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	flags.StringArrayVarP(&ctx.Upload_File, "upload-file", "T", []string{}, "Raw file(s) to PUT (default) to the url(s) given, not encoded, sets mime type to detected mime type for extension unless specified as a header")
 	flags.StringArrayVarP(&ctx.Headers, "header", "H", []string{}, "Header(s) to append to request")
 	flags.BoolVar(&ctx.DoNotUseHostCertificateAuthorities, "no-ca-native", false, "Do not use the host's Certificate Authorities (turns off --ca-native)")
-	flags.StringArrayVar(&ctx.CaCertFile, "ca-cert", nil, "Specifies PEM file(s) containing certs for trusted Certificate Authorities")
-	flags.StringVar(&ctx.CaCertPath, "ca-path", "", "Specifies a directory container PEM files containing certs for trusted Certificate Authorities")
+	flags.StringArrayVar(&ctx.CaCertFile, "cacert", nil, "PEM file(s) containing trusted Certificate Authorities")
+	flags.StringVar(&ctx.CaCertPath, "capath", "", "Directory containing trusted PEM certificates")
 	flags.StringVarP(&ctx.ClientCertFile, "cert", "E", "", "Client certificate (cert or cert + key) to use for authentication to server, with :password after if key is encrypted")
 	flags.StringVar(&ctx.ClientCertKeyFile, "key", "", "Client certificate key to use for authentication to server, with :password after if encrypted")
 	flags.StringVar(&ctx.ClientCertKeyPassword, "key-password", "", "Password to decrypt client certificate key") // NOT UPSTREAM curl!
@@ -80,7 +89,9 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	flags.BoolVar(&ctx.ForceTryHttp2, "http2", false, "Force trying an HTTP2 connection initially")
 	flags.IntVar(&ctx.MaxRetries, "retry", 0, "Number of times to retry a request if it returns a transient error (or, with --retry-all-errors, any error)")
 	flags.IntVar(&ctx.RetryDelaySeconds, "retry-delay", 0, "Seconds to wait between retries (see --retry)")
-	flags.BoolVar(&ctx.RetryAllErrors, "retry-all-errors", false, "Retry on any error status (>= 400), not just transient ones (see --retry)")
+	flags.BoolVar(&ctx.RetryAllErrors, "retry-all-errors", false, "Retry other transfer errors and any HTTP error status (requires --retry)")
+	flags.BoolVar(&ctx.RetryConnRefused, "retry-connrefused", false, "Also retry refused connections (requires --retry)")
+	flags.Float64Var(&ctx.RetryMaxTime, "retry-max-time", 0, "Maximum seconds allowed before starting another retry (0 = unlimited)")
 	flags.Float32Var(&ctx.Expect100Timeout, "expect100-timeout", 0, "Seconds to wait for a 100-continue response before sending the request body")
 	flags.BoolVarP(&ctx.ConvertPostFormIntoGet, "get", "G", false, "Convert -d/--data and related parameters into GET query string parameters")
 	flags.StringVarP(&ctx.WriteOut, "write-out", "w", "", "After completion, write out the given format to stdout; supports %{variable}, %header{name}, %% and \\n/\\t/\\r (use @file or @- to read the format from a file/stdin)")
@@ -94,6 +105,12 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	flags.StringArrayVar(&ctx.Resolve, "resolve", nil, "Resolve HOST:PORT to ADDRESS instead of using DNS (repeatable; HOST may be '*')")
 	flags.BoolVarP(&ctx.Http1_0, "http1.0", "0", false, "Use HTTP/1.0 (disables HTTP/2 and keep-alive; wire version is approximated by the Go client)")
 	flags.BoolVar(&ctx.Http1_1, "http1.1", false, "Use HTTP/1.1 (disables HTTP/2)")
+	flags.StringVar(&ctx.UnixSocket, "unix-socket", "", "Connect through a Unix domain socket instead of TCP")
+	flags.StringVarP(&ctx.Proxy, "proxy", "x", "", "HTTP/HTTPS proxy URL (empty disables environment proxies)")
+	flags.StringVar(&ctx.NoProxy, "noproxy", "", "Comma-separated hosts/domains/IPs/CIDRs that bypass the proxy; * bypasses all")
+	flags.BoolVar(&ctx.CreateDirs, "create-dirs", false, "Create parent directories for output files")
+	flags.BoolVar(&ctx.RemoveOnError, "remove-on-error", false, "Remove the body output file if the transfer fails")
+	flags.Int64Var(&ctx.MaxFilesize, "max-filesize", 0, "Maximum response body size in bytes (0 = unlimited)")
 }
 
 func ParseFlags(args []string, ctx *curl.CurlContext) ([]string, *curlerrors.CurlError) {
@@ -102,6 +119,9 @@ func ParseFlags(args []string, ctx *curl.CurlContext) ([]string, *curlerrors.Cur
 
 	for i := 0; i < len(args); i++ {
 		if args[i] == "-K" || args[i] == "--config" {
+			if i+1 >= len(args) {
+				return nil, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "--config requires a filename")
+			}
 			moreArgs, err2 := ParseConfigFile(args[i+1])
 			if err2 != nil {
 				return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_INVALID_ARGS, "Invalid args/failed to parse flags", err2)
@@ -113,6 +133,8 @@ func ParseFlags(args []string, ctx *curl.CurlContext) ([]string, *curlerrors.Cur
 	flags := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	SetupFlagArgs(ctx, flags)
 	err := flags.Parse(args)
+	ctx.ProxySet = flags.Changed("proxy")
+	ctx.NoProxySet = flags.Changed("noproxy")
 	extraArgs := flags.Args() // remaining non-parsed args
 	if err != nil {
 		return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_INVALID_ARGS, "Invalid args/failed to parse flags", err)

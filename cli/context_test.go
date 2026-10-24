@@ -33,7 +33,7 @@ func Test_SetupContextForRun_Test1(t *testing.T) {
 
 	assert.EqualValues(t, []string{"balloonbump"}, ctx.BodyOutput)
 	assert.NotNil(t, ctx.Jar)
-	assert.True(t, ctx.SilentFail)
+	assert.False(t, ctx.SilentFail)
 	assert.True(t, ctx.IsSilent)
 	assert.EqualValues(t, "https", ctx.DefaultProtocolScheme)
 }

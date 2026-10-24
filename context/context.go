@@ -3,6 +3,7 @@ package context
 import (
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -23,7 +24,7 @@ type CurlContext struct {
 	HttpVerb                           string
 	SilentFail                         bool
 	FailEarly                          bool
-	FailWithBody                       bool // inherent, unless you specify --fail-early or --fail/-f
+	FailWithBody                       bool
 	BodyOutput                         []string
 	HeaderOutput                       []string
 	UserAgent                          string
@@ -77,6 +78,8 @@ type CurlContext struct {
 	RetryDelaySeconds                  int
 	MaxRetries                         int
 	RetryAllErrors                     bool
+	RetryConnRefused                   bool
+	RetryMaxTime                       float64
 	ForceTryHttp2                      bool
 	Expect100Timeout                   float32
 	WriteOut                           string
@@ -90,9 +93,20 @@ type CurlContext struct {
 	Resolve                            []string
 	Http1_0                            bool
 	Http1_1                            bool
+	UnixSocket                         string
+	Proxy                              string
+	ProxySet                           bool
+	NoProxy                            string
+	NoProxySet                         bool
+	CreateDirs                         bool
+	RemoveOnError                      bool
+	MaxFilesize                        int64
 
 	// internal:
 	filesAlreadyStartedWriting map[string]*os.File
+	stdinData                  []byte
+	stdinRead                  bool
+	bodyOutputsWritten         map[string]bool
 }
 
 type CurlOutputWriter interface {
@@ -101,10 +115,6 @@ type CurlOutputWriter interface {
 
 func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlError {
 	// do sanity checks and "fix" some parts left remaining from flag parsing
-
-	if ctx.Verbose && len(ctx.HeaderOutput) == 0 {
-		ctx.HeaderOutput = ctx.BodyOutput // emit headers
-	}
 
 	if strings.Contains(ctx.UserAgent, "##DE") {
 		// ok, do the calc
@@ -127,10 +137,19 @@ func (ctx *CurlContext) SetupContextForRun(extraArgs []string) *curlerrors.CurlE
 		ctx.WriteOut = string(data)
 	}
 
-	if ctx.SilentFail || ctx.IsSilent {
-		ctx.IsSilent = true   // implied
-		ctx.SilentFail = true // both are the same thing right now, we only emit errors (or content)
-		// ctx.BodyOutput = []string{}
+	if ctx.SilentFail && ctx.FailWithBody {
+		return curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "--fail and --fail-with-body are mutually exclusive")
+	}
+	if ctx.RedirectsKeepAuthenticationHeaders {
+		ctx.FollowRedirects = true
+	}
+	for _, value := range []float64{float64(ctx.MaxTime), float64(ctx.ConnectTimeout), float64(ctx.Expect100Timeout), ctx.RetryMaxTime} {
+		if value < 0 || math.IsNaN(value) || math.IsInf(value, 0) || value >= float64(math.MaxInt64)/float64(time.Second) {
+			return curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "Timeouts must be finite, non-negative seconds within the supported duration range")
+		}
+	}
+	if ctx.MaxRetries < 0 || ctx.RetryDelaySeconds < 0 || int64(ctx.RetryDelaySeconds) > math.MaxInt64/int64(time.Second) || ctx.MaxFilesize < 0 || ctx.MaxRedirects < -1 {
+		return curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "Retry counts, retry delays and file sizes must be non-negative; --max-redirs must be -1 or greater")
 	}
 	if ctx.DefaultProtocolScheme == "" {
 		ctx.DefaultProtocolScheme = "http"
@@ -223,6 +242,9 @@ func (ctx *CurlContext) setupUrlsFromArgs(extraArgs []string) (string, error) {
 			if err != nil {
 				return s, err
 			}
+			if u.Scheme != "http" && u.Scheme != "https" {
+				return s, fmt.Errorf("unsupported protocol %q (only HTTP and HTTPS are supported)", u.Scheme)
+			}
 
 			if u.Host == "" {
 				u.Host = "localhost"
@@ -297,6 +319,9 @@ func (ctx *CurlContext) GetHeadersAsDict() map[string]string {
 	if len(ctx.Headers) > 0 {
 		for _, h := range ctx.Headers {
 			parts := strings.SplitN(h, ":", 2)
+			if len(parts) != 2 {
+				continue
+			}
 			val := parts[1]
 			// as we have Header: Value - have to remove the initial string
 			if strings.HasPrefix(val, " ") && len(val) > 1 {
@@ -326,6 +351,17 @@ func (ctx *CurlContext) GetNextOutputsFromContext(index int) (headerOutput strin
 }
 
 func (ctx *CurlContext) EmitResponseToOutputs(index int, resp *CurlResponses, request *http.Request) (cerrs curlerrors.CurlErrorCollection) {
+	ctx.bodyOutputsWritten = make(map[string]bool)
+	defer resp.Close()
+	defer func() {
+		if ctx.RemoveOnError && cerrs.HasError() {
+			cerrs.AppendCurlErrors(ctx.removeBodyOutputs())
+		}
+		if cerrs.HasError() {
+			resp.Error = cerrs.Errors[len(cerrs.Errors)-1]
+			resp.IsError = true
+		}
+	}()
 	for i := 0; i < len(resp.Responses); i++ {
 		isLast := i == len(resp.Responses)-1
 		cr := resp.Responses[i]
@@ -344,70 +380,101 @@ func (ctx *CurlContext) EmitResponseToOutputs(index int, resp *CurlResponses, re
 }
 
 func (ctx *CurlContext) EmitSingleHttpResponseToOutputs(index int, resp *http.Response, request *http.Request, headersOnly bool) (bodyLen int, cerrs curlerrors.CurlErrorCollection) {
-	// emit body
-	var respBody []byte
-	if !headersOnly && resp.Body != nil {
+	if resp == nil {
+		return
+	}
+	if resp.Body != nil {
 		defer resp.Body.Close()
-		respBody, _ = io.ReadAll(resp.Body)
-		bodyLen = len(respBody)
 	}
-
-	separator := []byte("\n\n")
-	headerBody := []byte("")
-	if ctx.Verbose {
-		if request != nil {
-			headerBody = appendStrings(headerBody, separator, DumpRequestHeaders(request))
-		}
-		if resp.TLS != nil {
-			headerBody = appendStrings(headerBody, separator, DumpTlsDetails(resp.TLS))
-		}
-	}
-	headerBody = appendStrings(headerBody, separator, DumpResponseHeaders(resp, ctx.Verbose))
 	headerOutput, contentOutput := ctx.GetNextOutputsFromContext(index)
-
-	// -J/--remote-header-name: prefer the Content-Disposition filename for the body output
 	if ctx.RemoteHeaderName && !headersOnly {
 		if fn := filenameFromContentDisposition(resp.Header.Get("Content-Disposition")); fn != "" {
 			contentOutput = fn
 		}
 	}
-
+	bodyOpened := false
+	defer func() {
+		if ctx.RemoveOnError && bodyOpened && cerrs.HasError() {
+			cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.removeFailedOutput(contentOutput))
+		}
+	}()
+	if ctx.Verbose {
+		var lines []string
+		if request != nil {
+			lines = append(lines, DumpRequestHeaders(request)...)
+		}
+		if resp.TLS != nil {
+			lines = append(lines, DumpTlsDetails(resp.TLS)...)
+		}
+		lines = append(lines, DumpResponseHeaders(resp, true)...)
+		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(ctx.ErrorOutput, []byte(strings.Join(lines, "\n")+"\n")))
+	}
+	headerBody := []byte(strings.Join(DumpResponseHeaders(resp, false), "\n") + "\n\n")
 	if ctx.HeadOnly {
-		err := ctx.WriteToFileBytes(headerOutput, headerBody)
-		if err != nil {
-			cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, err)
+		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(headerOutput, headerBody))
+		return
+	}
+	if headerOutput != contentOutput {
+		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, ctx.WriteToFileBytes(headerOutput, headerBody))
+	}
+	if cerrs.HasError() {
+		return
+	}
+	if !headersOnly && ctx.MaxFilesize > 0 && resp.ContentLength > ctx.MaxFilesize {
+		cerrs.AppendCurlError(curlerrors.NewCurlErrorFromString(curlerrors.ERROR_MAX_FILESIZE, "Response exceeds --max-filesize"))
+		return
+	}
+	if ctx.IncludeHeadersInMainOutput || headerOutput == contentOutput {
+		err := ctx.WriteToFileBytes(contentOutput, headerBody)
+		bodyOpened = err == nil
+		if bodyOpened {
+			ctx.recordBodyOutput(contentOutput)
 		}
-	} else if ctx.IncludeHeadersInMainOutput {
-		bytesOut := appendByteArrays(headerBody, separator, respBody)
-		err := ctx.WriteToFileBytes(contentOutput, bytesOut) // do all at once
-		if err != nil {
-			cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, err)
-		}
-		if headerOutput != contentOutput && respBody != nil {
-			err = ctx.WriteToFileBytes(headerOutput, headerBody)
-			if err != nil {
-				cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, err)
+		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, err)
+	}
+	if headersOnly || cerrs.HasError() || resp.Body == nil {
+		return
+	}
+	w, closer, err := ctx.openOutput(contentOutput)
+	if err != nil {
+		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, err)
+		return
+	}
+	bodyOpened = true
+	ctx.recordBodyOutput(contentOutput)
+	tracked := &outputWriter{Writer: w}
+	reader := io.Reader(resp.Body)
+	if ctx.MaxFilesize > 0 {
+		reader = io.LimitReader(reader, ctx.MaxFilesize)
+	}
+	n, readErr := io.Copy(tracked, reader)
+	bodyLen = int(n)
+	if readErr != nil {
+		if tracked.err != nil {
+			cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, tracked.err)
+		} else {
+			bodyErr := transferError(readErr)
+			if bodyErr.ExitCode == curlerrors.ERROR_NO_RESPONSE {
+				bodyErr.ExitCode = curlerrors.ERROR_RECEIVE
+				if resp.ContentLength >= 0 && n < resp.ContentLength {
+					bodyErr.ExitCode = curlerrors.ERROR_PARTIAL_FILE
+				}
 			}
+			cerrs.AppendCurlError(bodyErr)
 		}
-	} else if headerOutput == contentOutput {
-		bytesOut := appendByteArrays(headerBody, separator, respBody)
-		err := ctx.WriteToFileBytes(contentOutput, bytesOut) // do all at once
-		if err != nil {
-			cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, err)
-		}
-	} else {
-		err := ctx.WriteToFileBytes(headerOutput, headerBody)
-		if err != nil {
-			cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, err)
-		}
-		if respBody != nil {
-			err = ctx.WriteToFileBytes(contentOutput, respBody)
-			if err != nil {
-				cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, err)
-			}
+	} else if ctx.MaxFilesize > 0 && n == ctx.MaxFilesize {
+		var extra [1]byte
+		count, probeErr := io.ReadFull(resp.Body, extra[:])
+		if count > 0 {
+			cerrs.AppendCurlError(curlerrors.NewCurlErrorFromString(curlerrors.ERROR_MAX_FILESIZE, "Response exceeds --max-filesize"))
+		} else if probeErr != nil && probeErr != io.EOF {
+			cerrs.AppendCurlError(transferError(probeErr))
 		}
 	}
-	return bodyLen, cerrs
+	if closer != nil {
+		cerrs.AppendError(curlerrors.ERROR_CANNOT_WRITE_FILE, closer.Close())
+	}
+	return
 }
 
 func appendStrings(resp []byte, sepBody []byte, lines []string) []byte {

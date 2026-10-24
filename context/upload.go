@@ -19,7 +19,7 @@ func (ctx *CurlContext) HandleUploadRawFile(index int) (io.Reader, *curlerrors.C
 	// DOES use index - sends a file per URL
 	if len(ctx.Upload_File) > index {
 		filename := ctx.Upload_File[index]
-		f, err := os.ReadFile(filename) // #nosec G304
+		f, err := ctx.readInputFile(filename)
 		if err != nil {
 			return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 		}
@@ -55,7 +55,9 @@ func (ctx *CurlContext) HandleFormMultipart() (io.Reader, *curlerrors.CurlError)
 			splits := strings.SplitN(item, "=", 2)
 			name := splits[0]
 			value := splits[1]
-			handleFormArg(name, value, writer)
+			if err := handleFormArg(name, value, writer); err != nil {
+				return nil, err
+			}
 		} else {
 			return nil, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_ARGS, "I need a name=value or name=@file/path/here")
 		}
@@ -190,7 +192,7 @@ func handleDataArgs_Standard(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerror
 		idxAt := strings.Index(item, "@")
 		if idxAt == 0 { // @file/path/here - file containing name=value lines
 			filename := strings.TrimPrefix(item, "@")
-			fullForm, err := os.ReadFile(filename) // #nosec G304
+			fullForm, err := ctx.readInputFile(filename)
 			if err != nil {
 				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 			}
@@ -216,7 +218,7 @@ func handleDataArgs_Encoded(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors
 		idxEqual := strings.Index(item, "=")
 		if idxAt == 0 { // @file/path/here - file containing name=value lines
 			filename := strings.TrimPrefix(item, "@")
-			fullForm, err := os.ReadFile(filename) // #nosec G304
+			fullForm, err := ctx.readInputFile(filename)
 			if err != nil {
 				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 			}
@@ -243,7 +245,7 @@ func handleDataArgs_Encoded(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors
 			splits := strings.SplitN(item, "@", 2)
 			name := splits[0]
 			filename := splits[1]
-			valueRaw, err := os.ReadFile(filename) // #nosec G304
+			valueRaw, err := ctx.readInputFile(filename)
 			if err != nil {
 				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 			}
@@ -268,15 +270,15 @@ func handleDataArgs_Encoded(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors
 // --json @file (raw JSON)
 func handleDataArgs_Json(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.CurlError {
 	for _, item := range ctx.Data_Json {
-		if item[0] == '@' {
+		if strings.HasPrefix(item, "@") {
 			filename := strings.TrimPrefix(item, "@")
-			fullForm, err := os.ReadFile(filename) // #nosec G304
+			fullForm, err := ctx.readInputFile(filename)
 			if err != nil {
 				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 			}
-			appendDataBytes(bodyBuf, fullForm)
+			bodyBuf.Write(fullForm)
 		} else {
-			appendDataString(bodyBuf, item)
+			bodyBuf.WriteString(item)
 		}
 	}
 	return nil
@@ -301,7 +303,7 @@ func handleDataArgs_Binary(ctx *CurlContext, bodyBuf *bytes.Buffer) *curlerrors.
 		idxAt := strings.Index(item, "@")
 		if idxAt == 0 { // @file/path/here - file containing name=value lines
 			filename := strings.TrimPrefix(item, "@")
-			fullForm, err := os.ReadFile(filename) // #nosec G304
+			fullForm, err := ctx.readInputFile(filename)
 			if err != nil {
 				return curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 			}

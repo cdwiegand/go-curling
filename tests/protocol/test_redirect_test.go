@@ -16,6 +16,7 @@ func Test_RedirectTest_CurlContext(t *testing.T) {
 			Urls:            []string{"https://httpbin.org/redirect-to?url=https://httpbin.org/get%3Ftest%3Done"},
 			BodyOutput:      testrun.EnsureAtLeastOneOutputFiles(),
 			FollowRedirects: true,
+			MaxRedirects: 50,
 		}
 	}
 	testRun.SuccessHandler = helper_RedirectTest_Success

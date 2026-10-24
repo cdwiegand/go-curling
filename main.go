@@ -37,7 +37,7 @@ func main() {
 
 	// must be after version check
 	if len(ctx.Urls) == 0 {
-		cerr = curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, "no valid URL was not found on the command line, try 'go-curling --help' for usage")
+		cerr = curlerrors.NewCurlErrorFromString(curlerrors.ERROR_INVALID_URL, "No URL supplied; try 'go-curling --help' for usage")
 		reportError(cerr, ctx)
 		os.Exit(cerr.ExitCode)
 		return
@@ -52,45 +52,27 @@ func main() {
 
 	var lastErrorCode *curlerrors.CurlError
 	for index := range ctx.Urls {
-		request, cerr := ctx.BuildHttpRequest(ctx.Urls[index], index, true, true)
-		if cerr != nil {
-			lastErrorCode = cerr
-			if ctx.FailEarly {
-				reportError(cerr, ctx)
-				os.Exit(cerr.ExitCode)
-			}
+		request, transferErr := ctx.BuildHttpRequest(ctx.Urls[index], index, true, true)
+		var resp *curl.CurlResponses
+		if transferErr == nil {
+			resp, transferErr = ctx.PerformTransfer(index, client, request)
 		} else {
-			resp, cerr := ctx.GetCompleteResponse(index, client, request)
-			if cerr != nil {
-				lastErrorCode = cerr
-				if resp != nil && len(resp.Responses) > 0 && ctx.FailWithBody {
-					ctx.ProcessResponseToOutputs(index, resp, request)
-				}
-				reportError(cerr, ctx)
-				ctx.EmitWriteOut(resp)
-				if cerr.ExitCode != 0 && ctx.FailEarly {
-					os.Exit(cerr.ExitCode)
-				}
-			} else {
-				cerrs := ctx.ProcessResponseToOutputs(index, resp, request)
-				ctx.EmitWriteOut(resp)
-				if cerrs.HasError() {
-					forceExitCode := 0
-					for _, h := range cerrs.Errors {
-						lastErrorCode = h
-						reportError(h, ctx)
-						if h.ExitCode != 0 {
-							forceExitCode = h.ExitCode
-						}
-					}
-					if forceExitCode != 0 && ctx.FailEarly {
-						os.Exit(forceExitCode)
-					}
-				}
-			}
+			resp = &curl.CurlResponses{Error: transferErr}
+		}
+		if transferErr != nil {
+			lastErrorCode = transferErr
+			reportError(transferErr, ctx)
+		}
+		if outErr := ctx.EmitWriteOut(resp); outErr != nil {
+			lastErrorCode, transferErr = outErr, outErr
+			reportError(outErr, ctx)
+		}
+		if transferErr != nil && ctx.FailEarly {
+			client.CloseIdleConnections()
+			os.Exit(transferErr.ExitCode)
 		}
 	}
-
+	client.CloseIdleConnections()
 	if lastErrorCode != nil {
 		os.Exit(lastErrorCode.ExitCode)
 	}
@@ -102,15 +84,14 @@ func reportError(err *curlerrors.CurlError, ctx *curl.CurlContext) string {
 	}
 	entry := "Error: " + err.ErrorString + ".\n"
 
-	if err.ExitCode == curlerrors.ERROR_CANNOT_WRITE_TO_STDOUT {
-		// don't recurse (it called us to report the failure to write errors to a normal file)
-		panic(err)
-	}
-
-	if (!ctx.IsSilent && !ctx.SilentFail) || ctx.ShowErrorEvenIfSilent {
-		oserr := ctx.WriteToFileBytes(ctx.ErrorOutput, []byte(entry))
-		if oserr != nil && !ctx.SilentFail {
-			panic(err)
+	if !ctx.IsSilent || ctx.ShowErrorEvenIfSilent {
+		destination := ctx.ErrorOutput
+		if destination == "" {
+			destination = curl.DEFAULT_STDERR
+		}
+		oserr := ctx.WriteToFileBytes(destination, []byte(entry))
+		if oserr != nil {
+			_, _ = os.Stderr.WriteString(entry)
 		}
 	}
 

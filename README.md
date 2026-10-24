@@ -2,7 +2,7 @@
 ![Docker](https://github.com/cdwiegand/go-curling/actions/workflows/docker.yml/badge.svg)
 
 # Purpose
-This program was designed to replace the curl that is no longer shipped with Microsoft's dotnet core docker containers. Removing that kept breaking all of my upgraded containers, and I really wanted curl back for healthchecks without having to `apt install` and `apt clean` and cleaning out the cache. So I built a simple curl that handled the healthcheck calls I was doing. I have since started expanding it to meet more needs of the [original curl](https://curl.se/), while remaining golang based.
+This program provides a small, Go-based HTTP/HTTPS client for scripts and Docker images that do not ship curl. Copy the static binary into your application image without installing curl and its package dependencies. The published Docker image exists as a source for `COPY --from`; it does not run a service or define a health check. The goal is to support useful scripting features of the [original curl](https://curl.se/) while remaining Go based.
 
 # Examples
 
@@ -29,10 +29,30 @@ go install -ldflags="-s -w" -v github.com/cdwiegand/go-curling@latest
 ```
 
 # Using in a Dockerfile
+
+Copy just the binary into your application image:
+
 ```
 COPY --from=cdwiegand/go-curling:latest /bin/curl /usr/bin/curl
 # OR COPY --from=ghcr.io/cdwiegand/go-curling:latest /bin/curl /usr/bin/curl
-HEALTHCHECK CMD curl -s http://localhost:80
+```
+
+HTTPS uses the destination image's CA certificates. For images without a trust store, copy a CA bundle into the destination image and pass `--cacert /path/to/ca-bundle.crt`. Private CA files and directories can be supplied with `--cacert` and `--capath`.
+
+## Scripting examples
+
+```sh
+# Download with bounded attempts, startup retries and cleanup on failure.
+curl -fsS --connect-timeout 2 --max-time 30 \
+  --retry 3 --retry-connrefused --retry-max-time 60 \
+  --create-dirs --remove-on-error --max-filesize 104857600 \
+  -o downloads/archive.tar.gz https://example.com/archive.tar.gz
+
+# Pipe a JSON request without a temporary file.
+printf '%s' '{"enabled":true}' | curl -sS --json @- https://example.com/api
+
+# Query HTTP over a local Unix socket.
+curl --unix-socket /var/run/docker.sock http://localhost/version
 ```
 
 # Differences between original curl and go-curling
@@ -55,10 +75,10 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 | -- | -- | -- | 
 | `--basic` | (default) | Is only supported auth mech |
 | `--ca-native` | (default) | `--no-ca-native` used to turn off |
-| `--cacert` | yes | **(missing test)** |
-| `--capath` | yes | **(missing tests)** Loads all files in path and attempts to parse |
+| `--cacert` | yes | Load trusted PEM certificates; repeatable; `--ca-cert` is a legacy alias |
+| `--capath` | yes | Load PEM certificates from a directory; `--ca-path` is a legacy alias |
 | `-E`/`--cert` | yes | **(missing tests)** |
-| `--compressed` | (default) | turn off via `--no-compressed` |
+| `--compressed` | yes | Request gzip compression and decompress the response |
 | `-K`/`--config` | yes | Allows reading config values just like the cli parameters |
 | `-b`/`--cookie` | yes | HTTP cookie string or `@`file-path, specifies initial HTTP cookies |
 | `-c`/`--cookie-jar` | yes | Specifies file to use for ongoing cookies between requests, cannot use curl's native jar files |
@@ -68,7 +88,7 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 | `--data-urlencode` | yes | Send URL encoded data name=value OR name=`@`file-path |
 | `-D`/`--dump-header` | yes | Where to output headers, /dev/null default **(missing tests)** |
 | `--expect100-timeout` | yes | Time in decimal seconds to wait for 100-continue header, default 1.0s **(missing tests)** |
-| `-f`/`--fail` | yes | If fail do not emit contents **(missing tests)** |
+| `-f`/`--fail` | yes | On HTTP status >= 400, suppress the body and return exit code 22 |
 | `--fail-early` | yes | Fail IMMEDIATELY at error and do not process remaining URLs on command line **(missing tests)** |
 | `--fail-with-body` | yes | If fail, will still process output as specified on command line |
 | `-F`/`--form` | yes | Send next parameter as a multipart form field (or attach `@file`), name=value OR name=`@`file-path OR name=`<`file-path |
@@ -97,11 +117,13 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 | `-X`/`--request` | yes | HTTP method to use (generally `GET` unless overridden by other parameters) |
 | `-e`/`--referer` | yes | HTTP referer header **(missing tests)** |
 | `-e`/`--referer` | yes | HTTP referer header **(missing tests)** |
-| `--retry` | yes | Retry X times on specific HTTP errors (408, 429, 500, 502, 503, 504) **(missing tests)** |
-| `--retry-all` | yes | Retry any HTTP error (4xx & 5xx) **(missing tests)** |
-| `--retry-delay` | yes | Retry after X seconds on failures handled by `--retry` **(missing tests)** |
+| `--retry` | yes | Retry transient HTTP errors (408, 429, 500, 502, 503, 504) and timeouts; default exponential backoff |
+| `--retry-all-errors` | yes | With `--retry`, also retry other transfer errors and HTTP errors (4xx & 5xx) |
+| `--retry-connrefused` | yes | With `--retry`, also retry refused connections |
+| `--retry-max-time` | yes | Limit the time available before another retry may start |
+| `--retry-delay` | yes | Fixed delay in seconds; zero selects default backoff; honors `Retry-After` |
 | `-S`/`--show-error` | yes | Show error info even if silent/fail modes on **(missing tests)** |
-| `-s`/`--silent` | yes | Do not emit any output (unless overridden with `show-error`) **(missing tests)** |
+| `-s`/`--silent` | yes | Suppress diagnostics; response data and write-out output are still emitted |
 | `--stderr` | yes | Log errors, /dev/stderr default |
 | `--tls-max` | yes | Force TLS connection max version (1.0, 1.1, 1.2, 1.3, default) **(missing tests)** |
 | `-1`/`--tlsv1` | yes | Force TLS connections to at least 1.0 **(missing tests)** |
@@ -113,10 +135,10 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 | `--url` | yes | **(missing tests)** |
 | `-u`/`--user` | yes | Username:Password for HTTP Basic Authentication **(missing tests)** |
 | `-A`/`--user-agent` | yes | User-agent to use (`go-curling/XXXXX` default, XXXXX is a version/build identifier) **(missing tests)** |
-| `-v`/`--verbose` | yes | **(missing tests)** |
+| `-v`/`--verbose` | yes | Emit request/response diagnostics to stderr (or `--stderr`) |
 | `-V`/`--version` | yes | Return version and exit**(missing tests)** |
 | `-w`/`--write-out` | yes | After completion write out the given format to stdout; supports `%{variable}`, `%header{name}`, `%%` and `\n`/`\t`/`\r`; use `@file` or `@-` to load the format from a file/stdin |
-| `-m`/`--max-time` | yes | Maximum time in seconds the whole operation may take (bounds each hop of a redirect chain) |
+| `-m`/`--max-time` | yes | Maximum seconds per attempt, including all redirects and the response body |
 | `--connect-timeout` | yes | Maximum time in seconds to allow for establishing the connection |
 | `-O`/`--remote-name` | yes | Write output to a local file named like the remote file (from the URL path) |
 | `-J`/`--remote-header-name` | yes | With `-O`, prefer the filename from the `Content-Disposition` response header |
@@ -127,19 +149,26 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 | `--http2` | yes | Attempt an HTTP/2 connection |
 | `--http1.1` | yes | Use HTTP/1.1 (disables HTTP/2) |
 | `-0`/`--http1.0` | yes | Use HTTP/1.0 (disables HTTP/2 and keep-alive; wire version approximated by the Go client) |
+| `--unix-socket` | yes | Connect to HTTP/HTTPS through a Unix domain socket; bypasses proxies |
+| `-x`/`--proxy` | yes | Override the HTTP/HTTPS proxy; an empty value disables environment proxies |
+| `--noproxy` | yes | Comma-separated hosts, domains, IPs or CIDRs to bypass; `*` bypasses all; empty clears inherited exclusions |
+| `--create-dirs` | yes | Create parent directories for output files |
+| `--remove-on-error` | yes | Remove body output files written by a failed transfer |
+| `--max-filesize` | yes | Limit downloaded body bytes, including responses with no Content-Length; 0 is unlimited |
+| `-N`/`--no-buffer` | yes | Response bodies are streamed to the destination without whole-body buffering |
 
 # General Arguments Notes
 
 * `--version` is intended to return a build date/version header, and is not intended for parsing by programs. It will return immediately and not process any requests.
 * `--request` / `-X` allows you to specify an explicit HTTP verb, some parameters will also inherently override it (ex: `-I`/`--head` will set it to HEAD).
 * `--head` / `-I` will suppress content output and will emit the headers to the "content" output location. This means that `--head -o /tmp/1` is the same as `-D /tmp/1 -o /dev/null`.
-* `--dump-header` / `-H` will emit the HTTP response headers (if set to `-`, they will appear BEFORE the content output).
+* `--dump-header` / `-D` will emit the HTTP response headers (if set to `-`, they will appear BEFORE the content output).
 * `--output {file path or -}` redirects the content output to another location than stdout.
 * `--stderr {file path or -}` will emit errors to the given location.
 * `--user-agent {value}` will send the given user agent via HTTP instead of the default.
-* `--insecure` / `-K` will ignore invalid HTTPS certificates.
+* `--insecure` / `-k` will ignore invalid HTTPS certificates.
 * `--fail` / `-f` will suppress outputs ONLY ON FAILURE and just return a failure error code (non-zero); success will still output by default. 
-* `--silent` / `-s` will not emit any output regardless of success or failure.
+* `--silent` / `-s` suppresses diagnostics without changing HTTP failure handling or suppressing response data. Use `-o /dev/null` to discard the body. Use `--fail` or `--fail-with-body` to return a failure exit code for HTTP errors; those two flags are mutually exclusive.
 * `--show-error` / `-S` will show error info even if silent/fail modes on.
 * `--include` / `-i` will include emit returned headers and output to the output path (effectively `-D - -o -`, or `-D file1 -o file1`).
 * `--user` allows you to specify a Basic HTTP `username:password` style authentication header.
@@ -148,12 +177,15 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 * `--cookie` / `-b` (repeatable) allows you to specify an HTTP cookie (as a string, or as a file containing the cookie definition.
 * `--cookie-jar` / `-c` allows you to store HTTP cookies for multiple invocations.
 * `--post301`, `--post302`, and `--post303` retain POST as the method, along with any file/data uploads on those status codes. Normally we will drop to GET and also drop any data/file arguments.
-* `--max-redirs` limits the number of redirections to process to 50 by default. Pass -1, 0, or any negative number to allow unlimited redirects.
+* `--max-redirs` limits redirects to 50 by default. Zero permits no redirects; -1 permits unlimited redirects. Exceeding the limit returns exit code 47.
 * `--proto-default` specifies the default protocol for new URLs (default: http)
 * `--oauth2-bearer` specifies an OAuth2 Authorization header (Bearer: xxx) to pass to the first request.
-* `--location-trusted` permits redirects to retain authorization headers (basic auth or oauth2 bearer)
+* `--location-trusted` follows redirects and permits them to retain credentials. Otherwise Basic/Bearer authentication and explicitly supplied Authorization/Cookie headers are retained only for the original origin (same scheme, hostname and port). Cookie-jar cookies follow their own domain/path/security rules.
 * `--write-out` / `-w` prints a format string to stdout after the transfer completes (always to stdout, and not suppressed by `--silent`). In the format, `%{variable}` is replaced with a value, `%header{name}` with a response header, `%%` is a literal `%`, and `\n` `\t` `\r` are the usual escapes. An unknown `%{variable}` renders as empty. Prefix the whole value with `@` to read the format from a file (`@-` reads stdin). Supported variables: `http_code`/`response_code`, `http_version`, `content_type`, `num_headers`, `num_redirects`, `size_download`, `size_header`, `size_upload`/`size_request`, `url`, `url_effective`, `scheme`, `method`, `remote_ip`, `remote_port`, `local_ip`, `local_port`, `ssl_verify_result`, `exitcode`, `errormsg`, and the timers `time_namelookup`, `time_connect`, `time_appconnect`, `time_pretransfer`, `time_starttransfer`, `time_total`, `time_redirect`. Timers are measured against the final request; for a reused keep-alive connection the connection-phase timers report `0`, and `size_header` is a close approximation of the on-wire size.
-* `--max-time` / `-m` bounds the whole operation (connect + headers + body). Because redirects are followed with separate requests, it currently bounds each hop rather than the cumulative chain. `--connect-timeout` bounds only connection establishment.
+* `--max-time` / `-m` bounds each complete attempt (connect + redirects + headers + body). Retries start a fresh attempt timer. `--retry-max-time` prevents another retry when its delay would exhaust the retry budget; an already-started attempt can finish beyond that budget. Use both flags to bound retries and attempts. `--connect-timeout` bounds dialing and the TLS handshake.
+* `--retry` uses delays of 1, 2, 4, ... seconds, capped at 600 seconds, unless a nonzero `--retry-delay` is specified. A longer server `Retry-After` value takes precedence. Request bodies are replayed on retries; failed response bodies are closed. Body-read failures can be retried with `--retry-all-errors` (timeouts also qualify with plain `--retry`). Retrying a write operation can repeat server-side effects. Output files are rolled back before a retry, but stdout, pipes and other non-seekable destinations cannot be rolled back and may receive partial or repeated data.
+* Response bodies stream to their destination; interrupted transfers return a failure exit code. `--remove-on-error` removes body files touched by the failed transfer, including when `--fail-with-body` reports an HTTP error, and leaves files the transfer never opened alone. Request bodies, including stdin, are buffered in memory for replay.
+* Proxy environment variables are inherited from Go's HTTP transport. `--proxy` overrides the HTTP/HTTPS proxy and `--noproxy` overrides exclusions without changing the process environment. `--unix-socket` always bypasses proxies.
 * `--remote-name` / `-O` saves the body to a file named after the last path segment of the URL (one per URL); it errors if the URL has no file name. `--remote-header-name` / `-J` prefers the `Content-Disposition` filename when present, with any directory components stripped for safety. `-O`/`-J` override `-o` for the body output.
 * `--range` / `-r` sends a `Range: bytes=<range>` header unless you already set a `Range` header via `-H`.
 * `--ipv4` / `-4` and `--ipv6` / `-6` force the address family when connecting (mutually exclusive).
@@ -163,6 +195,7 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 # File/Form/Upload Arguments Notes
 
 * The `--data*` parameters will by default use `POST` as the HTTP verb and `application/x-www-form-urlencoded` as the content type (unless you specify a `Content-Type` header via `-H`):
+* `--data-binary @-`, `--json @-` and `--upload-file -` read the request body from stdin. The input is cached for redirects, retries and repeated URL transfers. `--write-out @-` separately consumes stdin as a format string; use a file for one of these inputs if you need both.
 * * Using `--data name=value` will send `name` as a raw (already URL encoded) value `value`.
 * * Using `--data name=@value` will send `name` as a raw (already URL encoded) value read from the file `value`.
 * * Using `--data-binary name=value` will send `name` as a raw (already URL encoded) value `value`.
@@ -178,14 +211,26 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 * * Using `--upload value` will send the contents of the `value` file as the entire body.
 
 # Error Codes
-- 6: Response present, but a status code >= 400 (e.g. failing) was returned
-- 7: No response, but an error was thrown
-- 8: Invalid/missing URL
-- 9: Unable to read upload file
-- 10: Unable to write output file (cookies or output)
-- 11: Unable to write to stdout/stderr
-- 249: No such host or invalid scheme
-- 250: Invalid/missing url
+
+Exit codes are positive and portable across shells. This replaces the previous negative codes (which wrapped to values such as 250 on Unix).
+
+- 0: Transfer succeeded; HTTP errors also return 0 unless `--fail` or `--fail-with-body` is used
+- 2: Invalid arguments or initialization failure
+- 3: Invalid/missing URL or unsupported scheme
+- 6: Unable to resolve host
+- 7: Connection/request failure
+- 18: Incomplete response body
+- 22: HTTP status >= 400 with `--fail` or `--fail-with-body`
+- 23: Unable to write output, headers, cookies, stdout or stderr
+- 26: Unable to read request data/upload file
+- 28: Operation timed out
+- 47: Redirect limit exceeded
+- 56: Error receiving the response body
+- 60: TLS certificate verification/system trust failure
+- 63: Response exceeds `--max-filesize`
+- 77: Unable to load a requested CA file/directory
+
+`%{exitcode}` and `%{errormsg}` in `--write-out` describe the completed transfer, including HTTP, timeout and output errors. A failure writing the write-out text itself is returned by the process exit code.
 
 # Tests
 Tests are now present in the code - run `go test -v ./...` to run them. Most test files contain both 
@@ -208,7 +253,6 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--ciphers`
 - `--connect-to`
 - `-C`/`--continue-at`
-- `--create-dirs`
 - `--create-file-mode`
 - `--crlf`
 - `--crlfile`
@@ -243,8 +287,6 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--ignore-content-length`
 - `--interface`
 - `--ipfs-gateway`
-- `-4`/`--ipv4`
-- `-6`/`--ipv6`
 - `--keepalive-time`
 - `--key-type`
 - `--krb`
@@ -252,7 +294,6 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--limit-rate`
 - `--local-port`
 - `-M`/`--manual`
-- `--max-filesize`
 - `--metalink`
 - `--negotiate`
 - `-n`/`--netrc`
@@ -260,7 +301,6 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--netrc-optional`
 - `-:`/`--next`
 - `--no-alpn`
-- `-N`/`--no-buffer`
 - `--no-clobber`
 - `--no-npn`
 - `--no-progress-meter`
@@ -273,16 +313,11 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--path-as-is` *`go-curling` does not modify given URL(s)*
 - `--pinnedpubkey`
 - `-#`/`--progress-bar`
-- `-x`/`--proxy`
 - `--rate`
 - `--raw`
 - `--remote-name-all`
 - `-R`/`--remote-time`
-- `--remove-on-error`
 - `--request-target`
-- `--retry-all-errors`
-- `--retry-connrefused`
-- `--retry-max-time`
 - `--service-name`
 - `-Y`/`--speed-limit`
 - `-y`/`--speed-time`
@@ -308,7 +343,6 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--trace-config`
 - `--trace-ids`
 - `--trace-time`
-- `--unix-socket`
 - `--url-query`
 - `--variable`
 - `--xattr`

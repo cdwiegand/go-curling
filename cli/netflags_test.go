@@ -117,7 +117,7 @@ func Test_MaxTime_TimesOutSlowServer(t *testing.T) {
 	req := buildReq(t, ctx)
 	_, cerr = ctx.GetCompleteResponse(0, client, req)
 	assert.NotNil(t, cerr, "should time out")
-	assert.Equal(t, curlerrors.ERROR_NO_RESPONSE, cerr.ExitCode)
+	assert.Equal(t, curlerrors.ERROR_TIMEOUT, cerr.ExitCode)
 }
 
 func mustPort(t *testing.T, rawurl string) string {

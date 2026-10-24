@@ -12,6 +12,7 @@ package context
 
 import (
 	"fmt"
+	curlerrors "github.com/cdwiegand/go-curling/errors"
 	"net"
 	"net/http"
 	"strconv"
@@ -36,13 +37,16 @@ type RequestTimings struct {
 // EmitWriteOut renders the --write-out format (if any) and writes it to stdout,
 // matching curl, which sends -w output to stdout regardless of -o and is not
 // suppressed by -s.
-func (ctx *CurlContext) EmitWriteOut(resp *CurlResponses) {
+func (ctx *CurlContext) EmitWriteOut(resp *CurlResponses) *curlerrors.CurlError {
 	if ctx.WriteOut == "" {
-		return
+		return nil
 	}
 	vars, headers := ctx.BuildWriteOutData(resp)
 	out := FormatWriteOut(ctx.WriteOut, vars, headers)
-	_ = ctx.WriteToFileBytes(DEFAULT_OUTPUT, []byte(out))
+	if err := ctx.WriteToFileBytes(DEFAULT_OUTPUT, []byte(out)); err != nil {
+		return curlerrors.NewCurlErrorFromError(curlerrors.ERROR_CANNOT_WRITE_FILE, err)
+	}
+	return nil
 }
 
 // BuildWriteOutData collects the --write-out variables and the per-header map
@@ -80,6 +84,10 @@ func (ctx *CurlContext) BuildWriteOutData(resp *CurlResponses) (vars map[string]
 	}
 	headers = map[string]string{}
 
+	if resp != nil && resp.Error != nil {
+		vars["exitcode"] = strconv.Itoa(resp.Error.ExitCode)
+		vars["errormsg"] = resp.Error.ErrorString
+	}
 	if resp == nil || len(resp.Responses) == 0 {
 		return vars, headers
 	}

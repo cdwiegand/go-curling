@@ -64,41 +64,49 @@ func (ctx *CurlContext) BuildClientCertificates() ([]tls.Certificate, *curlerror
 }
 
 func (ctx *CurlContext) BuildRootCAsPool() (*x509.CertPool, *curlerrors.CurlError) {
-	var err error
 	var pool *x509.CertPool
-
 	if ctx.DoNotUseHostCertificateAuthorities {
 		pool = x509.NewCertPool()
 	} else {
+		var err error
 		pool, err = x509.SystemCertPool()
-		if err != nil && ctx.FailEarly {
-			return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_SSL_SYSTEM_FAILURE, "Failed to load system CA", err)
+		if err != nil {
+			return nil, curlerrors.NewCurlErrorFromError(curlerrors.ERROR_SSL_SYSTEM_FAILURE, err)
 		}
 	}
-
-	caCertFiles := []string{}
-	if ctx.CaCertFile != nil {
-		caCertFiles = ctx.CaCertFile
+	if pool == nil {
+		pool = x509.NewCertPool()
+	}
+	load := func(filename string, required bool) *curlerrors.CurlError {
+		data, err := os.ReadFile(filename) // #nosec G304
+		if err != nil {
+			return curlerrors.NewCurlErrorFromError(curlerrors.ERROR_CA_CERT, err)
+		}
+		if !pool.AppendCertsFromPEM(data) && required {
+			return curlerrors.NewCurlErrorFromString(curlerrors.ERROR_CA_CERT, "No CA certificates found in "+filename)
+		}
+		return nil
+	}
+	for _, filename := range ctx.CaCertFile {
+		if err := load(filename, true); err != nil {
+			return nil, err
+		}
 	}
 	if ctx.CaCertPath != "" {
-		// pool = x509.NewCertPool()
-		error := filepath.Walk(ctx.CaCertPath, func(path string, info os.FileInfo, err error) error {
+		err := filepath.Walk(ctx.CaCertPath, func(filename string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
 			if !info.IsDir() {
-				caCertFiles = append(caCertFiles, path)
+				if err := load(filename, false); err != nil {
+					return err
+				}
 			}
 			return nil
 		})
-		if error != nil && ctx.FailEarly {
-			return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to open CA cert path %s", ctx.CaCertPath), error)
+		if err != nil {
+			return nil, curlerrors.NewCurlErrorFromError(curlerrors.ERROR_CA_CERT, err)
 		}
-	}
-
-	for _, h := range ctx.CaCertFile {
-		caBytes, error := os.ReadFile(h) // #nosec G304
-		if error != nil && ctx.FailEarly {
-			return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to open file %s", h), error)
-		}
-		pool.AppendCertsFromPEM(caBytes)
 	}
 	return pool, nil
 }
@@ -130,7 +138,8 @@ func convertPrivateKeyBlock(pem pem.Block, ClientCertKeyPassword string) (crypto
 
 func extractPemBlocks(b []byte, onlyPrivateKeys bool) (ret []pem.Block) {
 	for ok := true; ok; {
-		pemBlock, _ := pem.Decode(b)
+		pemBlock, rest := pem.Decode(b)
+		b = rest
 		if pemBlock != nil {
 			if !onlyPrivateKeys || strings.Contains(pemBlock.Type, "PRIVATE") {
 				ret = append(ret, *pemBlock)
