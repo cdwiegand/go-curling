@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.27.2 AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.3 AS build
 
 LABEL org.opencontainers.image.authors="Chris Wiegand"
 LABEL org.opencontainers.image.source="https://github.com/cdwiegand/go-curling"
