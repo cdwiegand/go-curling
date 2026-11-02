@@ -1,5 +1,5 @@
-github.com/cdwiegand/persistent-cookiejar v0.7.1 h1:6ay0r3256fCPmNlbozGZIpRwJfQT1kz/cKYNS39HL08=
-github.com/cdwiegand/persistent-cookiejar v0.7.1/go.mod h1:EcrgM9xW7fh3OF+u9ni8b/AtgkGJFH9EEUnFwZRIhcY=
+github.com/cdwiegand/persistent-cookiejar v0.8.0 h1:xUtCpN6r/6LlABqrqKWWVu7WESyjwMFgfd5cjfUvAvw=
+github.com/cdwiegand/persistent-cookiejar v0.8.0/go.mod h1:EcrgM9xW7fh3OF+u9ni8b/AtgkGJFH9EEUnFwZRIhcY=
 github.com/frankban/quicktest v1.14.6 h1:7Xjx+VpznH+oBnejlPUj8oUpdxnVs4f8XU8WnHkI4W8=
 github.com/frankban/quicktest v1.14.6/go.mod h1:4ptaffx2x8+WTWXmUCuVU6aPUX1/Mz7zb5vbUoiM6w0=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
