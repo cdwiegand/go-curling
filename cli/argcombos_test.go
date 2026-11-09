@@ -164,6 +164,72 @@ func Test_ArgCombo_CustomHeaderSuppressesAutoContentType(t *testing.T) {
 	})
 }
 
+// --- -T with several files and URLs: auto Content-Type is per file, -H / -X still win ---
+
+func writeUploadFiles(t *testing.T) (jsonFile, pngFile, unknownFile string) {
+	t.Helper()
+	dir := t.TempDir()
+	jsonFile = filepath.Join(dir, "a.json")
+	pngFile = filepath.Join(dir, "b.png")
+	unknownFile = filepath.Join(dir, "c.xyzzy")
+	for _, name := range []string{jsonFile, pngFile, unknownFile} {
+		if err := os.WriteFile(name, []byte("x"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return
+}
+
+// buildAllReqs builds one request per URL from the same (shared) context, as main() does.
+func buildAllReqs(t *testing.T, ctx *curl.CurlContext) []*http.Request {
+	t.Helper()
+	var reqs []*http.Request
+	for i, u := range ctx.Urls {
+		req, cerr := ctx.BuildHttpRequest(u, i, true, true)
+		if cerr != nil {
+			t.Fatalf("BuildHttpRequest(%d): %v", i, cerr)
+		}
+		reqs = append(reqs, req)
+	}
+	return reqs
+}
+
+func Test_ArgCombo_MultiUpload_ContentTypePerFile(t *testing.T) {
+	jsonFile, pngFile, unknownFile := writeUploadFiles(t)
+
+	t.Run("each file gets its own detected type", func(t *testing.T) {
+		ctx := setupCtx(t, "-T", jsonFile, "-T", pngFile, "-T", unknownFile,
+			"http://localhost/1", "http://localhost/2", "http://localhost/3")
+		reqs := buildAllReqs(t, ctx)
+		if assert.Len(t, reqs, 3) {
+			assert.Equal(t, "application/json", reqs[0].Header.Get("Content-Type"))
+			assert.Equal(t, "image/png", reqs[1].Header.Get("Content-Type"))
+			assert.Equal(t, "application/octet-stream", reqs[2].Header.Get("Content-Type"))
+			for i, req := range reqs {
+				assert.Equal(t, "PUT", req.Method, "request %d", i)
+			}
+		}
+	})
+	t.Run("explicit -H Content-Type wins for every file", func(t *testing.T) {
+		ctx := setupCtx(t, "-T", jsonFile, "-T", pngFile, "-H", "Content-Type: text/plain",
+			"http://localhost/1", "http://localhost/2")
+		for i, req := range buildAllReqs(t, ctx) {
+			assert.Equal(t, "text/plain", req.Header.Get("Content-Type"), "request %d", i)
+		}
+	})
+	t.Run("explicit -X wins over auto PUT for every file", func(t *testing.T) {
+		ctx := setupCtx(t, "-X", "POST", "-T", jsonFile, "-T", pngFile,
+			"http://localhost/1", "http://localhost/2")
+		reqs := buildAllReqs(t, ctx)
+		if assert.Len(t, reqs, 2) {
+			assert.Equal(t, "POST", reqs[0].Method)
+			assert.Equal(t, "POST", reqs[1].Method)
+			assert.Equal(t, "application/json", reqs[0].Header.Get("Content-Type"))
+			assert.Equal(t, "image/png", reqs[1].Header.Get("Content-Type"))
+		}
+	})
+}
+
 // --- body assembly: multiple values, comma-safety (StringArray, not StringSlice), url-encoding ---
 
 func Test_ArgCombo_DataBodyAssembly(t *testing.T) {
