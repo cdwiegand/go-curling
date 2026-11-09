@@ -3,6 +3,9 @@ package context
 import (
 	"bytes"
 	"io"
+	"mime"
+	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -78,6 +81,42 @@ func Test_BuildHttpRequest_UploadContentTypePerFile(t *testing.T) {
 // --form-string name=anyvalue (anyvalue can start with @ or <, they are ignored)
 // Note: no -F @file support
 func Test_HandleFormMultipart(t *testing.T) {
+}
+
+// Every request built from one context (one per URL, or rebuilt for a retry)
+// must carry a multipart body whose boundary matches its Content-Type header.
+func Test_HandleFormMultipart_RepeatedBuildsUseMatchingBoundary(t *testing.T) {
+	valueFile := filepath.Join(t.TempDir(), "value.txt")
+	assert.NoError(t, os.WriteFile(valueFile, []byte("from-file"), 0600))
+	ctx := &CurlContext{
+		Urls:              []string{"http://localhost/1", "http://localhost/2", "http://localhost/3"},
+		Form_Multipart:    []string{"a=b", "f=<" + valueFile},
+		Form_MultipartRaw: []string{"raw=@literal"},
+	}
+	for i, u := range append(ctx.Urls, ctx.Urls[0]) {
+		req, cerr := ctx.BuildHttpRequest(u, i%len(ctx.Urls), true, true)
+		if !assert.Nil(t, cerr) {
+			return
+		}
+		mediaType, params, err := mime.ParseMediaType(req.Header.Get("Content-Type"))
+		assert.NoError(t, err)
+		assert.Equal(t, "multipart/form-data", mediaType)
+		form, err := multipart.NewReader(req.Body, params["boundary"]).ReadForm(1 << 20)
+		if !assert.NoError(t, err, "request %d body does not match its boundary", i+1) {
+			return
+		}
+		assert.Equal(t, []string{"b"}, form.Value["a"], "request %d", i+1)
+		assert.Equal(t, []string{"from-file"}, form.Value["f"], "request %d", i+1)
+		assert.Equal(t, []string{"@literal"}, form.Value["raw"], "request %d", i+1)
+		assert.Equal(t, http.MethodPost, req.Method)
+	}
+	contentTypes := 0
+	for key := range ctx.GetHeadersAsDict() {
+		if key == "Content-Type" {
+			contentTypes++
+		}
+	}
+	assert.Equal(t, 1, contentTypes, "the Content-Type header is stored once")
 }
 
 func Test_handleFormArg(t *testing.T) {

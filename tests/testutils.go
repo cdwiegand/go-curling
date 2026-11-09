@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	curlcli "github.com/cdwiegand/go-curling/cli"
 	curl "github.com/cdwiegand/go-curling/context"
@@ -129,13 +132,11 @@ func (run *TestRun) RunTestRun() {
 	var rawJsonsGot []string
 
 	for index := range ctx.Urls {
-		request, cerr := ctx.BuildHttpRequest(ctx.Urls[index], index, true, true)
-		if cerr != nil {
+		resp, request, cerr := run.getCompleteResponseRetryingRateLimits(ctx, client, index)
+		if request == nil {
 			run.ErrorHandler(cerr, run)
 			return
 		}
-
-		resp, cerr := ctx.GetCompleteResponse(index, client, request)
 		run.Responses = resp
 		if cerr != nil {
 			run.ErrorHandler(cerr, run)
@@ -211,11 +212,9 @@ func ReadJson(file string) (res map[string]interface{}, raw string, err error) {
 }
 
 func CompareCurlCliOutput(run *TestRun, args []string, myJsonObjs []map[string]interface{}, myJsonRaws []string) error {
-	cmd, _, outputs := run.FixLinuxRunIfWindowsToWslCurlRun(args)
-
-	curlerr := cmd.Run()
+	outputs, curlerr := run.runCurlRetryingRateLimits(args)
 	if curlerr != nil {
-		return errors.New("Error running @[" + cmd.Path + "] " + strings.Join(cmd.Args, " ") + ": " + curlerr.Error())
+		return curlerr
 	}
 
 	for i, h := range outputs {
@@ -405,10 +404,7 @@ func (run *TestRun) RunTestRunAgainstCurlCli() {
 		run.Testing.Fatal("Forgot to add CmdLineBuilder to 'curl' CLI test!")
 	}
 
-	cmd, _, outputs := run.FixLinuxRunIfWindowsToWslCurlRun(args)
-
-	err := cmd.Run()
-
+	outputs, err := run.runCurlRetryingRateLimits(args)
 	if err != nil {
 		run.Testing.Fatal(err)
 	}
@@ -429,5 +425,131 @@ func (run *TestRun) RunTestRunAgainstCurlCli() {
 		if run.SuccessHandlerIndexedRaw != nil {
 			run.SuccessHandlerIndexedRaw(json, rawJson, index, run)
 		}
+	}
+}
+
+// httpbin.org rate-limits clients by answering 429 Too Many Requests, which
+// made the network tests fail at random. The harness retries rate-limited
+// requests, for both go-curling and the real curl binary, with exponential
+// backoff plus jitter (so parallel test packages spread out), honoring a
+// Retry-After header when one is visible.
+const (
+	rateLimitMaxAttempts  = 8
+	rateLimitBaseDelay    = time.Second
+	rateLimitMaxDelay     = 15 * time.Second
+	rateLimitMaxRetryWait = time.Minute
+)
+
+// rateLimitSleep is replaced in tests to keep them fast.
+var rateLimitSleep = time.Sleep
+
+// rateLimitDelay returns how long to wait before retry number attempt+1: an
+// exponential backoff capped at rateLimitMaxDelay, raised to retryAfter when the
+// server asked for longer, plus up to 50% random jitter.
+func rateLimitDelay(attempt int, retryAfter time.Duration) time.Duration {
+	delay := rateLimitMaxDelay
+	if attempt < 8 {
+		delay = min(rateLimitBaseDelay<<attempt, rateLimitMaxDelay)
+	}
+	delay = max(delay, min(retryAfter, rateLimitMaxRetryWait))
+	return delay + time.Duration(rand.Int64N(int64(delay/2)+1)) // #nosec G404 -- jitter only
+}
+
+// parseRetryAfter reads a Retry-After header given in seconds or as an HTTP date.
+func parseRetryAfter(value string, now time.Time) time.Duration {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0
+	}
+	if seconds, err := strconv.Atoi(value); err == nil {
+		if seconds < 0 {
+			return 0
+		}
+		return time.Duration(seconds) * time.Second
+	}
+	if when, err := http.ParseTime(value); err == nil && when.After(now) {
+		return when.Sub(now)
+	}
+	return 0
+}
+
+// rateLimitedResponse reports whether go-curling's final response was a 429,
+// and how long the server asked us to wait.
+func rateLimitedResponse(resp *curl.CurlResponses) (bool, time.Duration) {
+	if resp == nil || len(resp.Responses) == 0 {
+		return false, 0
+	}
+	last := resp.Responses[len(resp.Responses)-1].HttpResponse
+	if last == nil || last.StatusCode != http.StatusTooManyRequests {
+		return false, 0
+	}
+	return true, parseRetryAfter(last.Header.Get("Retry-After"), time.Now())
+}
+
+// isRateLimitedBody recognizes httpbin's 429 reply body. That body is all the
+// harness can see when the real curl binary saves a response to a file.
+func isRateLimitedBody(raw []byte) bool {
+	var obj map[string]any
+	if json.Unmarshal(raw, &obj) != nil {
+		return false
+	}
+	code, ok := obj["status_code"].(float64)
+	return ok && code == http.StatusTooManyRequests
+}
+
+func outputsRateLimited(outputs []string) bool {
+	for _, file := range outputs {
+		raw, err := os.ReadFile(file) // #nosec G304 -- test output files
+		if err == nil && isRateLimitedBody(raw) {
+			return true
+		}
+	}
+	return false
+}
+
+// getCompleteResponseRetryingRateLimits performs go-curling's request for one
+// URL, retrying while the server answers 429. The status is checked before any
+// output is written, so a rate-limited body never reaches the output files. It
+// returns a nil request when the request could not be built, and an error once
+// rateLimitMaxAttempts attempts were all rate-limited.
+func (run *TestRun) getCompleteResponseRetryingRateLimits(ctx *curl.CurlContext, client *http.Client, index int) (*curl.CurlResponses, *http.Request, *curlerrors.CurlError) {
+	for attempt := 0; ; attempt++ {
+		request, cerr := ctx.BuildHttpRequest(ctx.Urls[index], index, true, true)
+		if cerr != nil {
+			return nil, nil, cerr
+		}
+		resp, cerr := ctx.GetCompleteResponse(index, client, request)
+		limited, retryAfter := rateLimitedResponse(resp)
+		if !limited {
+			return resp, request, cerr
+		}
+		resp.Close()
+		if attempt+1 >= rateLimitMaxAttempts {
+			return resp, request, curlerrors.NewCurlErrorFromString(curlerrors.ERROR_STATUS_CODE_FAILURE, fmt.Sprintf("%s is still rate-limited (HTTP 429) after %d attempts", ctx.Urls[index], rateLimitMaxAttempts))
+		}
+		delay := rateLimitDelay(attempt, retryAfter)
+		run.Testing.Logf("go-curling: %s was rate-limited (HTTP 429); retrying in %s (attempt %d of %d)", ctx.Urls[index], delay.Round(time.Millisecond), attempt+2, rateLimitMaxAttempts)
+		rateLimitSleep(delay)
+	}
+}
+
+// runCurlRetryingRateLimits runs the real curl binary, running it again while
+// any output file holds a rate-limited reply. curl's -o truncates its output
+// files, so each attempt starts clean.
+func (run *TestRun) runCurlRetryingRateLimits(args []string) ([]string, error) {
+	for attempt := 0; ; attempt++ {
+		cmd, _, outputs := run.FixLinuxRunIfWindowsToWslCurlRun(args)
+		if err := cmd.Run(); err != nil {
+			return nil, errors.New("Error running @[" + cmd.Path + "] " + strings.Join(cmd.Args, " ") + ": " + err.Error())
+		}
+		if !outputsRateLimited(outputs) {
+			return outputs, nil
+		}
+		if attempt+1 >= rateLimitMaxAttempts {
+			return nil, fmt.Errorf("curl %s is still rate-limited (HTTP 429) after %d attempts", strings.Join(args, " "), rateLimitMaxAttempts)
+		}
+		delay := rateLimitDelay(attempt, 0)
+		run.Testing.Logf("curl: rate-limited (HTTP 429); retrying in %s (attempt %d of %d)", delay.Round(time.Millisecond), attempt+2, rateLimitMaxAttempts)
+		rateLimitSleep(delay)
 	}
 }

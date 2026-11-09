@@ -47,6 +47,14 @@ func (ctx *CurlContext) HandleUploadRawFile(index int) (io.Reader, string, *curl
 func (ctx *CurlContext) HandleFormMultipart() (io.Reader, *curlerrors.CurlError) {
 	bodyBuf := &bytes.Buffer{}
 	writer := multipart.NewWriter(bodyBuf)
+	// The Content-Type header (with its boundary) is stored on the context the
+	// first time, so every later body built from this context, for another URL
+	// or a rebuilt request, must use that same boundary.
+	if ctx.multipartBoundary == "" {
+		ctx.multipartBoundary = writer.Boundary()
+	} else if err := writer.SetBoundary(ctx.multipartBoundary); err != nil {
+		return nil, curlerrors.NewCurlErrorFromError(curlerrors.ERROR_INTERNAL, err)
+	}
 
 	for _, item := range ctx.Form_Multipart {
 		idxEqual := strings.Index(item, "=")
@@ -85,7 +93,7 @@ func (ctx *CurlContext) HandleFormMultipart() (io.Reader, *curlerrors.CurlError)
 	}
 
 	ctx.SetMethodIfNotSet("POST")
-	ctx.SetHeaderIfNotSet("Content-Type", "multipart/form-data; boundary="+writer.Boundary())
+	ctx.SetHeaderIfNotSet("Content-Type", "multipart/form-data; boundary="+ctx.multipartBoundary)
 	return bodyBuf, nil
 }
 
