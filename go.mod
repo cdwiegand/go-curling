@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/cdwiegand/persistent-cookiejar v0.7.1
-	github.com/spf13/pflag v1.0.10
+	github.com/spf13/pflag v1.1.0
 	github.com/stretchr/testify v1.12.1
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78
 	golang.org/x/net v0.61.0
