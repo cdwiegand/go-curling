@@ -110,6 +110,7 @@ type CurlContext struct {
 	stdinData                  []byte
 	stdinRead                  bool
 	bodyOutputsWritten         map[string]bool
+	multipartBoundary          string // reused so every multipart body matches the stored Content-Type header
 }
 
 type CurlOutputWriter interface {
