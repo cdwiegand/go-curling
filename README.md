@@ -51,6 +51,10 @@ curl -fsS --connect-timeout 2 --max-time 30 \
 # Pipe a JSON request without a temporary file.
 printf '%s' '{"enabled":true}' | curl -sS --json @- https://example.com/api
 
+# Build a URL safely from an environment variable (curl 8.3.0+ syntax).
+export USER_ID="12345"
+curl --variable '%USER_ID' --expand-url "https://example.com/users/{{USER_ID:url}}"
+
 # Query HTTP over a local Unix socket.
 curl --unix-socket /var/run/docker.sock http://localhost/version
 ```
@@ -61,7 +65,7 @@ This program only attempts to support HTTP/HTTPS protocols - others like IMAP, S
 Not all HTTP-related functionality is supported either, but normal calls like GET, POST, PUT, DELETE, etc. are implemented for the vast majority of use cases, but one difference that makes this not 100% drop-in would be that the `--cookie-jar`/`-c` is both read and write (and `-b`/`--cookie` is "read only"). So normally if you want to use cookies to login a session, just use `--cookie-jar`/`-c` in each call - no need to specify `--cookie`/`-b` unless you want to specify one or more "starting" cookie values.
 
 - Globbing is NOT supported
-- Environment variable interpolation ("Variables" in the curl man page) is not supported
+- Variables (`--variable` and `--expand-<option>`) follow curl's documented rules; see "Variables" below for the few places where go-curling knowingly differs from curl 8.x
 - Command line arguments not listed as supported are not supported
 - You cannot merge "short form" arguments directly with their values, e.g.: `curl -darbitrary https://...` is not supported, you must use `curl -d arbitrary https://...`
 - `no-xxx` form arguments are generally not recognized, unless documented by default their positive version being true (e.g. `--no-fail` doesn't exist as `--fail` is not a default value, but `--no-ca-native` does exist because by default we load the native CA certifications from the underlying OS and so `--ca-native` doesn't exist to turn "on")
@@ -79,7 +83,7 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 | `--capath` | yes | Load PEM certificates from a directory; `--ca-path` is a legacy alias |
 | `-E`/`--cert` | yes | **(missing tests)** |
 | `--compressed` | yes | Request gzip compression and decompress the response |
-| `-K`/`--config` | yes | Allows reading config values just like the cli parameters |
+| `-K`/`--config` | yes | Allows reading config values just like the cli parameters; options apply where `-K` appears on the command line |
 | `-b`/`--cookie` | yes | HTTP cookie string or `@`file-path, specifies initial HTTP cookies |
 | `-c`/`--cookie-jar` | yes | Specifies file to use for ongoing cookies between requests, cannot use curl's native jar files |
 | `-d`/`--data`/`--data-ascii` | yes | Send raw string data name=value OR name=`@`file-path |
@@ -156,6 +160,8 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 | `--remove-on-error` | yes | Remove body output files written by a failed transfer |
 | `--max-filesize` | yes | Limit downloaded body bytes, including responses with no Content-Length; 0 is unlimited |
 | `-N`/`--no-buffer` | yes | Response bodies are streamed to the destination without whole-body buffering |
+| `--variable` | yes | Define a variable from a value, a file, stdin or an environment variable; see "Variables" below |
+| `--expand-<option>` | yes | Any option that takes a value, such as `--expand-url` or `--expand-header`, with `{{name}}` references expanded; see "Variables" below |
 
 # General Arguments Notes
 
@@ -191,6 +197,55 @@ Note that one thing that is now supported is that if you specify multiple URLs, 
 * `--ipv4` / `-4` and `--ipv6` / `-6` force the address family when connecting (mutually exclusive).
 * `--resolve HOST:PORT:ADDRESS` dials the given address while keeping the original host for the request and TLS/SNI verification (like curl); `HOST` may be `*` to match any host on that port, and the option is repeatable.
 * `--http1.1` and `--http2` select the HTTP version (disabling the other); `--http1.0` / `-0` additionally sends `Connection: close`. Note the Go HTTP client always writes an HTTP/1.1 request line on the wire, so `--http1.0` is an approximation (keep-alive is disabled, but the wire version is not downgraded).
+
+# Variables
+
+Variables work like curl's (added in curl 8.3.0). `--variable` defines a variable, and any long option that takes a value can be written as `--expand-<option>` so that `{{name}}` in its value is replaced. Options are processed left to right, so a variable must be defined before the option that uses it.
+
+```sh
+export USER_ID="12345"
+curl --variable '%USER_ID' --expand-url "https://example.com{{USER_ID}}"
+
+# Functions can be chained: trim, then URL-encode
+curl --variable 'token@token.txt' \
+  --expand-header 'Authorization: Bearer {{token:trim}}' \
+  --expand-url 'https://example.com/search?q={{token:trim:url}}'
+
+# Safely embed a value in a JSON body
+curl --variable '%MESSAGE' --expand-json '{"text":"{{MESSAGE:json}}"}' https://example.com/api
+```
+
+Defining variables:
+
+| Syntax | Meaning |
+| -- | -- |
+| `--variable name=content` | Set `name` to `content` |
+| `--variable name@file` | Set `name` to the contents of `file`; `@-` reads stdin (shared with `-d @-` and similar) |
+| `--variable %NAME` | Import environment variable `NAME`; it is an error if it is not set |
+| `--variable %NAME=default` | Import `NAME`, or use `default` if it is not set |
+| `--variable %NAME@file` | Import `NAME`, or read the default from `file` if it is not set |
+| `--variable 'name[N-M]=content'` | Keep only bytes `N` through `M` (inclusive, zero-based) of the content; `[N-]` keeps from `N` to the end. Works with every form above (curl 8.12.0+) |
+| `--expand-variable 'b={{a}}x'` | Define a variable from other variables |
+
+Names may contain letters, digits and underscores (up to 127 characters) and are case sensitive. Defining a name again replaces it. Malformed `--variable` syntax prints a warning and is skipped, as in curl.
+
+Using variables in `--expand-<option>` values:
+
+* `{{name}}` inserts the variable's contents. An undefined variable inserts nothing.
+* `{{name:func}}` applies a function, and functions chain left to right, e.g. `{{name:trim:url}}`:
+  * `trim` removes leading and trailing whitespace.
+  * `url` percent-encodes everything except letters, digits, `-`, `.`, `_` and `~`.
+  * `json` escapes the value for use inside a JSON string (without adding quotes).
+  * `b64` base64-encodes the value.
+  * `64dec` base64-decodes the value, or gives `[64dec-fail]` if it is not valid base64 (curl 8.13.0+).
+* An unknown function is an error (exit code 2).
+* `\{{` inserts a literal `{{`.
+* A reference that is not a valid name, such as `{{a b}}`, or a `{{` without a closing `}}`, is kept as-is with a warning.
+* A value containing a NUL byte is an error unless a function such as `b64`, `url` or `json` encodes it.
+* Only options written with the `--expand-` prefix are expanded. Short options have no expand form, and `--expand-` cannot be used with options that take no value, such as `--expand-insecure`.
+* `--variable` and `--expand-<option>` lines work in `-K`/`--config` files too, e.g. `variable = "host=example.com"` and `expand-url = "https://{{host}}/"`.
+
+Known differences from curl 8.6: go-curling uses the environment value for `%NAME=default` when `NAME` is set, as curl's documentation describes, while curl 8.6 uses the default. go-curling also always turns `\{{` into `{{`, while curl 8.6 leaves the value untouched when its only `{{` is escaped.
 
 # File/Form/Upload Arguments Notes
 
@@ -344,7 +399,6 @@ Lots of credit to the [original authors of curl](https://curl.se/docs/thanks.htm
 - `--trace-ids`
 - `--trace-time`
 - `--url-query`
-- `--variable`
 - `--xattr`
 
 These are not applicable because `go-curling` does not support proxies yet:

@@ -101,6 +101,9 @@ type CurlContext struct {
 	CreateDirs                         bool
 	RemoveOnError                      bool
 	MaxFilesize                        int64
+	VariableArgs                       []string          // raw --variable values, as parsed by the flag library
+	Variables                          map[string]string // defined variables, used by --expand-* options
+	Warnings                           []string          // non-fatal problems found while parsing, shown unless --silent
 
 	// internal:
 	filesAlreadyStartedWriting map[string]*os.File

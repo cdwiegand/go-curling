@@ -19,6 +19,8 @@ func main() {
 		return
 	}
 
+	reportWarnings(ctx)
+
 	if ctx.Version {
 		_, err := os.Stdout.WriteString("go-curling build ##DEV##")
 		if err != nil {
@@ -76,6 +78,25 @@ func main() {
 	if lastErrorCode != nil {
 		os.Exit(lastErrorCode.ExitCode)
 	}
+}
+
+// reportWarnings shows non-fatal parse warnings (as curl does) unless --silent.
+func reportWarnings(ctx *curl.CurlContext) string {
+	if len(ctx.Warnings) == 0 || ctx.IsSilent {
+		return ""
+	}
+	entry := ""
+	for _, w := range ctx.Warnings {
+		entry += "Warning: " + w + "\n"
+	}
+	destination := ctx.ErrorOutput
+	if destination == "" {
+		destination = curl.DEFAULT_STDERR
+	}
+	if oserr := ctx.WriteToFileBytes(destination, []byte(entry)); oserr != nil {
+		_, _ = os.Stderr.WriteString(entry)
+	}
+	return entry
 }
 
 func reportError(err *curlerrors.CurlError, ctx *curl.CurlContext) string {

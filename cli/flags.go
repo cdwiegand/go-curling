@@ -111,6 +111,7 @@ func SetupFlagArgs(ctx *curl.CurlContext, flags *flag.FlagSet) {
 	flags.BoolVar(&ctx.CreateDirs, "create-dirs", false, "Create parent directories for output files")
 	flags.BoolVar(&ctx.RemoveOnError, "remove-on-error", false, "Remove the body output file if the transfer fails")
 	flags.Int64Var(&ctx.MaxFilesize, "max-filesize", 0, "Maximum response body size in bytes (0 = unlimited)")
+	flags.StringArrayVar(&ctx.VariableArgs, "variable", nil, "Set a variable: name=content, name@file (@- for stdin), %ENVNAME, %ENVNAME=default or %ENVNAME@file; optional [N-M] byte range after the name. Use it in any option value via --expand-<option> (e.g. --expand-url) as {{name}} or {{name:func}}, with functions trim, json, url, b64 and 64dec")
 }
 
 func ParseFlags(args []string, ctx *curl.CurlContext) ([]string, *curlerrors.CurlError) {
@@ -126,13 +127,23 @@ func ParseFlags(args []string, ctx *curl.CurlContext) ([]string, *curlerrors.Cur
 			if err2 != nil {
 				return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_INVALID_ARGS, "Invalid args/failed to parse flags", err2)
 			}
-			args = append(args, moreArgs...)
+			// like curl, config file options take effect where -K appears, so
+			// later command-line options override them and --variable ordering holds
+			spliced := make([]string, 0, len(args)+len(moreArgs))
+			spliced = append(spliced, args[:i+2]...)
+			spliced = append(spliced, moreArgs...)
+			args = append(spliced, args[i+2:]...)
+			i++ // skip the file name; nested -K lines are handled as the loop continues
 		}
 	}
 
 	flags := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	SetupFlagArgs(ctx, flags)
+	args, cerr := processVariableArgs(args, ctx, flags)
 	err := flags.Parse(args)
+	if cerr != nil {
+		return nil, cerr // after parsing the options before the failure, so -s/-S/--stderr apply
+	}
 	ctx.ProxySet = flags.Changed("proxy")
 	ctx.NoProxySet = flags.Changed("noproxy")
 	extraArgs := flags.Args() // remaining non-parsed args
