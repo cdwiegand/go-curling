@@ -172,12 +172,13 @@ func (ctx *CurlContext) BuildHttpRequest(url string, index int, submitDataFormsP
 	}
 
 	var body io.Reader
+	autoContentType := "" // per-request Content-Type (not stored on the shared ctx.Headers)
 	// must call these BEFORE using ctx.method (as they may set it to POST/PUT if not yet explicitly set)
 	// fixme: add support for mixing them (upload file vs all others?)
 	// fixme: add --data-binary support
 	if submitDataFormsPostContents {
 		if len(ctx.Upload_File) > index {
-			body, err = ctx.HandleUploadRawFile(index)
+			body, autoContentType, err = ctx.HandleUploadRawFile(index)
 			if err != nil {
 				return nil, err // just stop now
 			}
@@ -224,6 +225,10 @@ func (ctx *CurlContext) BuildHttpRequest(url string, index int, submitDataFormsP
 	}
 
 	ctx.SetupInitialHeadersOnRequest(request)
+	// an explicit -H Content-Type (even an empty one) always wins
+	if _, userSet := request.Header["Content-Type"]; autoContentType != "" && !userSet {
+		request.Header.Set("Content-Type", autoContentType)
+	}
 
 	if submitAuthenticationHeaders {
 		if cerr := ctx.SetCookieHeadersOnRequest(request); cerr != nil {

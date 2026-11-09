@@ -2,6 +2,7 @@ package context
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,6 +13,62 @@ import (
 
 // -T
 func Test_HandleUploadRawFile(t *testing.T) {
+	dir := t.TempDir()
+	jsonFile := filepath.Join(dir, "a.json")
+	pngFile := filepath.Join(dir, "b.png")
+	unknownFile := filepath.Join(dir, "c.xyzzy")
+	for name, content := range map[string]string{jsonFile: `{"a":1}`, pngFile: "png-bytes", unknownFile: "raw"} {
+		assert.NoError(t, os.WriteFile(name, []byte(content), 0600))
+	}
+
+	ctx := &CurlContext{Upload_File: []string{jsonFile, pngFile, unknownFile, "/this-does/not-exist"}}
+
+	wants := []struct{ contentType, body string }{
+		{"application/json", `{"a":1}`},
+		{"image/png", "png-bytes"},
+		{"application/octet-stream", "raw"},
+	}
+	for i, want := range wants {
+		body, contentType, cerr := ctx.HandleUploadRawFile(i)
+		assert.Nil(t, cerr, "file %d should not return an error", i)
+		assert.Equal(t, want.contentType, contentType, "file %d content type", i)
+		b, err := io.ReadAll(body)
+		assert.NoError(t, err)
+		assert.Equal(t, want.body, string(b), "file %d body", i)
+	}
+	// the detected type must not leak into the shared headers (it would stick for later files)
+	assert.Empty(t, ctx.Headers, "HandleUploadRawFile should not record a Content-Type on ctx.Headers")
+	assert.Equal(t, "PUT", ctx.HttpVerb)
+
+	_, _, cerr := ctx.HandleUploadRawFile(3)
+	assert.Equal(t, curlerrors.ERROR_CANNOT_READ_FILE, cerr.ExitCode, "Should return ERROR_CANNOT_READ_FILE")
+
+	body, contentType, cerr := ctx.HandleUploadRawFile(4)
+	assert.Nil(t, body)
+	assert.Equal(t, "", contentType)
+	assert.Nil(t, cerr)
+}
+
+// -T with several files and URLs: each request gets its own file's Content-Type
+func Test_BuildHttpRequest_UploadContentTypePerFile(t *testing.T) {
+	dir := t.TempDir()
+	jsonFile := filepath.Join(dir, "a.json")
+	pngFile := filepath.Join(dir, "b.png")
+	unknownFile := filepath.Join(dir, "c.xyzzy")
+	for _, name := range []string{jsonFile, pngFile, unknownFile} {
+		assert.NoError(t, os.WriteFile(name, []byte("x"), 0600))
+	}
+
+	ctx := &CurlContext{
+		Upload_File: []string{jsonFile, pngFile, unknownFile},
+		Urls:        []string{"http://localhost/1", "http://localhost/2", "http://localhost/3"},
+	}
+	for i, want := range []string{"application/json", "image/png", "application/octet-stream"} {
+		req, cerr := ctx.BuildHttpRequest(ctx.Urls[i], i, true, true)
+		assert.Nil(t, cerr)
+		assert.Equal(t, want, req.Header.Get("Content-Type"), "request %d", i)
+		assert.Equal(t, "PUT", req.Method, "request %d", i)
+	}
 }
 
 // -F

@@ -15,28 +15,27 @@ import (
 )
 
 // -T
-func (ctx *CurlContext) HandleUploadRawFile(index int) (io.Reader, *curlerrors.CurlError) {
+// Returns the file body and the Content-Type detected for that file. The type is
+// per file, so it is returned rather than stored on the shared ctx.Headers (which
+// would make every later -T file reuse the first file's type); BuildHttpRequest
+// applies it to the request unless the user set a Content-Type with -H.
+func (ctx *CurlContext) HandleUploadRawFile(index int) (io.Reader, string, *curlerrors.CurlError) {
 	// DOES use index - sends a file per URL
 	if len(ctx.Upload_File) > index {
 		filename := ctx.Upload_File[index]
 		f, err := ctx.readInputFile(filename)
 		if err != nil {
-			return nil, curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
+			return nil, "", curlerrors.NewCurlErrorFromStringAndError(curlerrors.ERROR_CANNOT_READ_FILE, fmt.Sprintf("Failed to read file %s", filename), err)
 		}
 		mimeType := mime.TypeByExtension(path.Ext(filename))
 		if mimeType == "" {
 			mimeType = "application/octet-stream"
 		}
-		bodyBuf := &bytes.Buffer{}
-		bodyBuf.Write(f)
 
 		ctx.SetMethodIfNotSet("PUT")
-		if mimeType != "" {
-			ctx.SetHeaderIfNotSet("Content-Type", mimeType)
-		}
-		return io.Reader(bodyBuf), nil
+		return bytes.NewReader(f), mimeType, nil
 	}
-	return nil, nil
+	return nil, "", nil
 }
 
 // -F
