@@ -1,6 +1,7 @@
 package context
 
 import (
+	"bufio"
 	"context"
 	"encoding/pem"
 	"errors"
@@ -159,21 +160,35 @@ func TestAuthenticationGateAndInvalidRequest(t *testing.T) {
 }
 
 func TestInterruptedDownloadAndCleanup(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, rw, err := w.(http.Hijacker).Hijack()
-		if err != nil {
-			return
-		}
-		defer conn.Close()
-		rw.WriteString("HTTP/1.1 200 OK\r\nContent-Length: 20\r\n\r\npartial")
-		rw.Flush()
-	}))
-	defer srv.Close()
+	// The truncated response is served over an in-memory pipe instead of a
+	// loopback TCP server. The test depends on the client seeing a clean EOF
+	// right after the 7 body bytes, and loopback TCP teardown does not
+	// guarantee that on every machine: on some Windows hosts (e.g. with
+	// loopback packet filters installed) the server's close arrives as a
+	// reset that discards the unread response, so the client fails before it
+	// has the headers (exit 7) or never sees the close at all (hang).
 	for _, remove := range []bool{false, true} {
 		t.Run(fmt.Sprint(remove), func(t *testing.T) {
 			ctx := scriptingContext(t)
 			ctx.RemoveOnError = remove
-			resp, err := scriptingTransfer(t, ctx, srv.URL)
+			client, cerr := ctx.BuildClient()
+			require.Nil(t, cerr)
+			t.Cleanup(client.CloseIdleConnections)
+			client.Transport.(*http.Transport).DialContext = func(context.Context, string, string) (net.Conn, error) {
+				serverConn, clientConn := net.Pipe()
+				go func() {
+					defer serverConn.Close()
+					if _, err := http.ReadRequest(bufio.NewReader(serverConn)); err != nil {
+						return
+					}
+					io.WriteString(serverConn, "HTTP/1.1 200 OK\r\nContent-Length: 20\r\n\r\npartial")
+				}()
+				return clientConn, nil
+			}
+			req, reqErr := ctx.BuildHttpRequest("http://truncated.test/", 0, true, true)
+			require.Nil(t, reqErr)
+			resp, err := ctx.PerformTransfer(0, client, req)
+			t.Cleanup(resp.Close)
 			require.NotNil(t, err)
 			require.Equal(t, curlerrors.ERROR_PARTIAL_FILE, err.ExitCode)
 			vars, _ := ctx.BuildWriteOutData(resp)
